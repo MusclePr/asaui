@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.env
+.env.local
+*.log
+asa_server
+asa_ui
+asa_backup
+src/app/ShooterGame
+src/app/Engine
+src/app/*.txt
+src/app/*.so
+src/app/*.ini
+src/app/linux64
+src/app/steamapps
