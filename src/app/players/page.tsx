@@ -132,6 +132,19 @@ export default function PlayersPage() {
     return displayName.includes(normalizedSearch) || p.name.toLowerCase().includes(normalizedSearch) || p.eosId.includes(search);
   });
 
+  const getLastLoginTimestamp = (value: string) => {
+    if (!value || value === "-") return 0;
+    const parsed = Date.parse(value.replace(" ", "T"));
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const sortedPlayers = [...filteredPlayers].sort((a, b) => {
+    const aTime = getLastLoginTimestamp(a.lastLogin);
+    const bTime = getLastLoginTimestamp(b.lastLogin);
+    if (aTime !== bTime) return bTime - aTime;
+    return (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name, "ja");
+  });
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -243,7 +256,7 @@ export default function PlayersPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filteredPlayers.map((p) => (
+              {sortedPlayers.map((p) => (
                 <tr key={p.eosId} className="hover:bg-muted/50 transition-colors">
                   <td className="px-4 py-3 font-medium">
                     <div className="flex items-center gap-2">

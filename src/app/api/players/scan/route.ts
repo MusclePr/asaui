@@ -70,6 +70,21 @@ export async function GET() {
       }
     }
 
+    for (const [eosId, profile] of Object.entries(profiles)) {
+      const displayName = profile?.displayName?.trim();
+      if (!displayName) continue;
+      if (!playersMap.has(eosId)) {
+        playersMap.set(eosId, {
+          name: eosId,
+          displayName,
+          eosId,
+          lastLogin: "-",
+          isWhitelisted: whitelist.includes(eosId),
+          isBypassed: bypassList.includes(eosId)
+        });
+      }
+    }
+
     return NextResponse.json(Array.from(playersMap.values()));
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
