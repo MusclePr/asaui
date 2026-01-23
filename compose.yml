@@ -62,7 +62,7 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./asa_server:/opt/arkserver:ro
+      - ./asa_server:/opt/arkserver
       - ./asa_ui:/data
       - /var/run/docker.sock:/var/run/docker.sock
     ports:

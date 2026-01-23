@@ -9,7 +9,9 @@ export interface ContainerStatus {
 
 export interface PlayerInfo {
   name: string;
-  steamId: string;
+  displayName?: string;
+  eosId: string;
   lastLogin: string;
   isWhitelisted: boolean;
+  isBypassed: boolean;
 }

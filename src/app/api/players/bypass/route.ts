@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addToWhitelist, removeFromWhitelist } from "@/lib/storage";
+import { addToBypassList, removeFromBypassList } from "@/lib/storage";
 import { execRcon } from "@/lib/docker";
 import { SERVERS } from "@/lib/config";
 
@@ -8,10 +8,9 @@ export async function POST(req: NextRequest) {
     const { eosId } = await req.json();
     if (!eosId) return NextResponse.json({ error: "EOS ID required" }, { status: 400 });
 
-    addToWhitelist(eosId);
-    // ホワイトリストに追加・削除するコマンドは存在しないため、ここではRCONコマンドを実行しない
-    // const targets = SERVERS.map(server => server.id).filter(Boolean);
-    // await Promise.all(targets.map(id => execRcon(id, `AllowPlayerToJoin ${eosId}`)));
+    addToBypassList(eosId);
+    const targets = SERVERS.map(server => server.id).filter(Boolean);
+    await Promise.all(targets.map(id => execRcon(id, `AllowPlayerToJoinNoCheck ${eosId}`)));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -24,10 +23,9 @@ export async function DELETE(req: NextRequest) {
     const { eosId } = await req.json();
     if (!eosId) return NextResponse.json({ error: "EOS ID required" }, { status: 400 });
 
-    removeFromWhitelist(eosId);
-    // ホワイトリストに追加・削除するコマンドは存在しないため、ここではRCONコマンドを実行しない
-    // const targets = SERVERS.map(server => server.id).filter(Boolean);
-    // await Promise.all(targets.map(id => execRcon(id, `DisallowPlayerToJoin ${eosId}`)));
+    removeFromBypassList(eosId);
+    const targets = SERVERS.map(server => server.id).filter(Boolean);
+    await Promise.all(targets.map(id => execRcon(id, `DisallowPlayerToJoinNoCheck ${eosId}`)));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

@@ -1,12 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { ARK_SAVE_BASE_DIR, SERVERS } from "@/lib/config";
-import { getWhitelist } from "@/lib/storage";
+import { getBypassList, getPlayerProfiles, getWhitelist } from "@/lib/storage";
 
 export async function GET() {
   try {
     const whitelist = getWhitelist();
+    const bypassList = getBypassList();
+    const profiles = getPlayerProfiles();
     const playersMap = new Map<string, any>();
 
     // Scan each server's save directory
@@ -20,20 +22,51 @@ export async function GET() {
       for (const file of profileFiles) {
         const filePath = path.join(saveDir, file);
         const stats = fs.statSync(filePath);
-        const steamId = file.replace(".arkprofile", "");
+        const eosId = file.replace(".arkprofile", "");
         
         // Simple name extraction (mock or read file header if needed)
-        // For now, use SteamID as name if multiple maps found, keep latest login
+        // For now, use EOS ID as name if multiple maps found, keep latest login
         const lastLogin = stats.mtime.toISOString().replace("T", " ").split(".")[0];
 
-        if (!playersMap.has(steamId) || new Date(lastLogin) > new Date(playersMap.get(steamId).lastLogin)) {
-          playersMap.set(steamId, {
-            name: steamId, // Ideal: Extract from file
-            steamId,
+        const displayName = profiles[eosId]?.displayName?.trim() || undefined;
+        if (!playersMap.has(eosId) || new Date(lastLogin) > new Date(playersMap.get(eosId).lastLogin)) {
+          playersMap.set(eosId, {
+            name: eosId, // Ideal: Extract from file
+            displayName,
+            eosId,
             lastLogin,
-            isWhitelisted: whitelist.includes(steamId)
+            isWhitelisted: whitelist.includes(eosId),
+            isBypassed: bypassList.includes(eosId)
           });
         }
+      }
+    }
+
+    for (const eosId of whitelist) {
+      const displayName = profiles[eosId]?.displayName?.trim() || undefined;
+      if (!playersMap.has(eosId)) {
+        playersMap.set(eosId, {
+          name: eosId,
+          displayName,
+          eosId,
+          lastLogin: "-",
+          isWhitelisted: true,
+          isBypassed: bypassList.includes(eosId)
+        });
+      }
+    }
+
+    for (const eosId of bypassList) {
+      const displayName = profiles[eosId]?.displayName?.trim() || undefined;
+      if (!playersMap.has(eosId)) {
+        playersMap.set(eosId, {
+          name: eosId,
+          displayName,
+          eosId,
+          lastLogin: "-",
+          isWhitelisted: whitelist.includes(eosId),
+          isBypassed: true
+        });
       }
     }
 

@@ -33,10 +33,10 @@ export async function manageContainer(id: string, action: string) {
 
 export async function execRcon(containerIdOrName: string, command: string): Promise<string> {
   // Use docker exec to run rcon command inside the container
-  // Assuming the container has 'arkmanager' or or similar RCON tool
+  // Assuming the container has 'manager' or or similar RCON tool
   const container = docker.getContainer(containerIdOrName);
   const exec = await container.exec({
-    Cmd: ['arkmanager', 'rcon', command],
+    Cmd: ['manager', 'rcon', command],
     AttachStdout: true,
     AttachStderr: true
   });
