@@ -3,19 +3,23 @@
 ## 1. システム構成
 
 ### 1.1 技術スタック
-- **Frontend/Backend:** Next.js 14+ (App Router)
+- **Frontend/Backend:** Next.js 15 (App Router)
 - **Language:** TypeScript
-- **Styling:** Tailwind CSS + Shadcn UI (Dark Mode Base)
-- **Authentication:** NextAuth.js (Credentials Provider)
+- **Styling:** Tailwind CSS
+- **Authentication:** NextAuth.js (Credentials Provider / Password)
 - **Container Orchestration:** Dockerode (Docker API wrapper)
-- **Persistence:** JSON files (`/data/whitelist.json`)
+- **Persistence:**
+  - 表示名メタ情報: JSON (`/data/players.json`)
+  - サーバー側リスト: テキスト（ホワイトリスト/バイパスリスト）
 - **Icons:** Lucide React
+- **Forms/Validation:** react-hook-form + zod
 
 ### 1.2 コンテナ構成
 - **asaui:**
   - ユーザーインターフェースおよび管理APIを提供。
   - `/var/run/docker.sock` をマウントし、他コンテナを制御。
-  - `/opt/arkserver` を読み取り専用マウントし、セーブデータを解析。
+  - `/opt/arkserver` をマウントし、セーブデータ解析とサーバー側リスト更新を行う。
+  - `/data` をマウントし、表示名などのメタ情報を永続化する。
 
 ---
 
@@ -27,9 +31,10 @@
 ```bash
 # asaui 認証設定
 ASAUI_PASSWORD=your_secure_password_here
+NEXTAUTH_SECRET=your_random_secret_string
 
 # 管理対象サーバー (既存)
-ARK_SERVERS=(asa_main asa_sub1)
+ARK_SERVERS="asa_main asa_sub1"
 
 # 各サーバーのマップ名 (ディレクトリ解析用)
 # SERVER_MAP は各サービスの environment でも定義されているが、
@@ -38,46 +43,56 @@ SRV_asa_main_MAP=TheIsland_WP
 SRV_asa_sub1_MAP=Extinction_WP
 
 # セーブデータルート (デフォルト: ShooterGame/Saved/SavedArks)
-ARK_SAVE_BASE_DIR=ShooterGame/Saved/SavedArks
+ARK_SAVE_BASE_DIR=/opt/arkserver/ShooterGame/Saved/SavedArks
+
+# RCON 実行対象 (未指定時は ARK_SERVERS の先頭)
+ARK_MAP_MAIN=asa_main
 ```
 
-### 2.2 ホワイトリスト管理 (whitelist.json)
-`/data/whitelist.json` に保存。
+### 2.2 永続化データ
+
+#### 2.2.1 表示名メタ情報 (players.json)
+`/data/players.json` に EOS ID → 表示名のマップを保存する。
 
 ```json
-[
-  {
-    "eosId": "0002...",
-    "name": "PlayerName",
-    "note": "Optional memo",
-    "addedAt": "2024-01-01T00:00:00Z"
+{
+  "00023e876b964cd3b6f01a9d7040d038": {
+    "displayName": "PlayerName"
   }
-]
+}
 ```
+
+#### 2.2.2 ホワイトリスト/バイパスリスト
+ARK: Ascended のサーバー側リストファイルを直接編集する。
+
+- ホワイトリスト: `ShooterGame/Binaries/Win64/PlayersExclusiveJoinList.txt`
+- バイパスリスト: `ShooterGame/Binaries/Win64/PlayersJoinNoCheckList.txt`
+
+いずれも「1行=1つのEOS ID」のテキスト。ホワイトリストはサーバー再起動が必要になる。
 
 ---
 
 ## 3. 機能詳細設計
 
 ### 3.1 プレイヤー所在解析ロジック
-- **スキャンパス:** `/opt/arkserver/${ARK_SAVE_BASE_DIR}/${MAP_NAME}/`
+- **スキャンパス:** `${ARK_SAVE_BASE_DIR}/${MAP_NAME}/`
 - **対象ファイル:** `${EOS_ID}.arkprofile`
 - **解析プロセス:**
   1. `ARK_SERVERS` で定義された各 ID に対して、対応する `SRV_${ID}_MAP` を取得。
   2. マップフォルダ内の `.arkprofile` ファイルを全走査。
-  3. ファイル名から EOS ID を、最終更新日時から最終ログインを特定。
-  4. 複数マップに同一 ID が存在する場合、タイムスタンプが最新のものを「現在のマップ」とし、他を「サブマップ」として表示。
+  3. ファイル名から EOS ID を、最終更新日時（mtime）から最終ログインを特定。
+  4. 複数マップに同一 ID が存在する場合、mtime が最新のものを採用（現状は「検出マップ一覧」の保持は行わない）。
   5. スキャン結果は API 経由でフロントエンドに返却し、手動リロードボタンで再実行可能。
 
 ### 3.2 サーバー制御
 - **コンテナ操作:** `docker.getContainer(id).start()` / `stop()`
-- **ログ取得:** `container.logs({ tail: 100, stdout: true, stderr: true })` をストリームまたは一括取得。
+- **ログ取得:** （未実装/将来）`container.logs({ tail: 100, stdout: true, stderr: true })` 等で取得可能。
 - **RCON操作:** 
-  - `docker exec -itu arkuser ${container_id} manager rcon "${command}"` を実行。
+  - 対象コンテナ内で `manager rcon <command>` を実行（Docker Exec 相当）。
 
 ---
 
-## 4. UI 画面設計 (Shadcn UI)
+## 4. UI 画面設計
 
 ### 4.1 ログイン画面
 - `ASAUI_PASSWORD` によるシンプルなパスワード認証。
@@ -103,6 +118,6 @@ ARK_SAVE_BASE_DIR=ShooterGame/Saved/SavedArks
 ---
 
 ## 5. セキュリティ
-- `ASAUI_PASSWORD` はハッシュ化せずとも、NextAuth で保護された API 経由でのみ検証。
+- `ASAUI_PASSWORD` は NextAuth の Credentials 認証で検証（現状は平文比較）。
 - ホワイトリスト API は認証済みセッションが必須。
 - Docker ソケットの露出を最小限にするため、asaui コンテナ自体への外部露出はリバースプロキシ（Basic認証等）を併用することを推奨（要求仕様通り）。

@@ -10,6 +10,8 @@
 - 本プロジェクト：`https://github.com/MusclePr/asaui`
 - ARK_Ascended_Docker プロジェクト: `https://github.com/MusclePr/ARK_Ascended_Docker`
 
+※ ARK_Ascended_Docker は本リポジトリに参照用サブモジュールとして配置できるが、**親の compose.yml と asaui の実行はサブモジュールに依存しない**（参照専用）。
+
 **参考ファイル:**
 
 - 環境変数 `.env` ファイル:
@@ -74,10 +76,10 @@ ARK_EXTRA_OPTS=
 ARK_EXTRA_DASH_OPTS="-exclusivejoin -ForceAllowCaveFlyers -ForceRespawnDinos -AllowRaidDinoFeeding=true -ServerPlatform=ALL -RedownloadModsOnServerRestart"
 # -UseDynamicConfig
 
-ARK_SERVERS=(asa_main asa_sub1)
+ARK_SERVERS="asa_main asa_sub1"
 ```
 
-- compose 構成: `compose.yml` ファイル:
+- compose 構成: `compose.yml` ファイル（本リポジトリの現行例）:
 
 ```yaml
 services:
@@ -86,12 +88,10 @@ services:
     image: ghcr.io/musclepr/ark_ascended_docker:latest
     restart: on-failure
     tty: true
-    build:
-      context: .
     env_file:
       - .env
     environment:
-      SERVER_MAP: TheIsland_WP
+      SERVER_MAP: ${SRV_asa_main_MAP:-TheIsland_WP}
       SESSION_NAME: "${DOMAIN:-TEST} - The Island"
       SERVER_PORT: 7790
       QUERY_PORT: 27030
@@ -101,8 +101,8 @@ services:
       AUTO_UPDATE_CRON_EXPRESSION: "0 4 * * 0"
       SLAVE_PORTS: "7791"
     volumes:
-      - ./app:/opt/arkserver
-      - ./backup:/var/backups
+      - ./asa_server:/opt/arkserver
+      - ./asa_backup:/var/backups
     ports:
       - "7790:7790/udp"
       - "27030:27030/udp"
@@ -116,7 +116,7 @@ services:
     env_file:
       - .env
     environment:
-      SERVER_MAP: Extinction_WP
+      SERVER_MAP: ${SRV_asa_sub1_MAP:-Extinction_WP}
       SESSION_NAME: "${DOMAIN:-TEST} - Extinction"
       SERVER_PORT: 7791
       QUERY_PORT: 27031
@@ -124,8 +124,8 @@ services:
       AUTO_UPDATE_ENABLED: "false"
       LOG_FILE: "ShooterGame_sub1.log"
     volumes:
-      - ./app:/opt/arkserver
-      - ./backup:/var/backups:ro # restore only
+      - ./asa_server:/opt/arkserver
+      - ./asa_backup:/var/backups:ro # restore only
     ports:
       - "7791:7791/udp"
       - "27031:27031/udp"
@@ -140,6 +140,20 @@ services:
 #    entrypoint: /bin/sh -c "chown -R 1000:1000 /web && python3 -m http.server --directory /web 80"
 #    volumes:
 #      - ./web:/web
+
+  asaui:
+    container_name: asaui
+    image: ghcr.io/musclepr/asaui:latest
+    build:
+      context: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./asa_server:/opt/arkserver
+      - ./asa_ui:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:3000"
 ```
 
 ---
@@ -153,12 +167,12 @@ services:
 - **asa_main**
   - **image:** `ghcr.io/musclepr/ark_ascended_docker:latest`
   - **container_name:** `asa_main`
-  - **volumes:** `./app:/opt/arkserver`, `./backup:/var/backups`
+  - **volumes:** `./asa_server:/opt/arkserver`, `./asa_backup:/var/backups`
   - **ports:** `7790:7790/udp`, `27030:27030/udp`
 - **asa_sub1**
   - **image:** `ghcr.io/musclepr/ark_ascended_docker:latest` ... 共通
   - **container_name:** `asa_sub1`
-  - **volumes:** `./app:/opt/arkserver`, `./backup:/var/backups:ro` ... backup は、asa_main 任せのため、read only とされている。
+  - **volumes:** `./asa_server:/opt/arkserver`, `./asa_backup:/var/backups:ro` ... backup は、asa_main 任せのため、read only とされている。
   - **ports:** `7791:7791/udp`, `27031:27031/udp`
 
 ### 2.2 asaui サービス追加要件
@@ -170,12 +184,15 @@ services:
 - **コンテナ名:** `asaui`（推奨）
 - **依存関係:**
   - `depends_on` に `asa_main`, `asa_sub1` を指定しない。これらのサイドコンテナの start/stop 自体を制御するため。
+- **起動点:**
+  - 運用・起動は常に本リポジトリルートの `compose.yml` を使用する（参照用サブモジュール側の compose は使用しない）。
 - **ボリューム:**
-  - `./app:/opt/arkserver:ro`（読み取り専用で可視化用にマウントすること）
-  - `./data:/data` WebUI のセーブストレージ。ホワイトリストとして名前とEOS IDのペアデータなどをファイル保存したり、サイドコンテナの停止状態などを保存します。
+  - `./asa_server:/opt/arkserver`（セーブデータ参照およびサーバー側リストファイル更新のため）
+  - `./asa_ui:/data`（表示名などのメタ情報を JSON で永続化）
   - `/var/run/docker.sock:/var/run/docker.sock` ホストの docker コマンドと同等に扱えるようにするため。
 - **環境変数**
-  - .env を環境変数として使用する。これにより、`ARK_SERVERS=(asa_main asa_sub1)` などから、制御すべきサイドコンテナ名が解る。
+  - `.env` を使用する。`ARK_SERVERS` から制御対象コンテナを決定し、`SRV_<id>_MAP` で各コンテナに対応するマップ名を与える。
+  - 認証用に `ASAUI_PASSWORD` と `NEXTAUTH_SECRET` を必須とする。
 - **ネットワーク:**
   - 既存サービスと同一ネットワーク（デフォルトブリッジで問題なければそれを利用）
 - **ポート:**
@@ -195,7 +212,7 @@ services:
   - 特に指定なし。Node.js/Next.js を想定した設計とするが、要件を満たせば他でも可。
 - **認証・保護:**
   - `.htaccess` 等によるベーシック認証などで保護される前提。
-  - asaui 自身はアプリ内ログイン機構を必須とはしないが、将来拡張を見据えた認証層の追加が可能な構造にしておく。
+  - asaui 自身もアプリ内ログイン（パスワード）を持ち、未ログイン時は `/login` に誘導する。
 
 ### 3.2 プレイヤーホワイトリスト管理
 
@@ -216,8 +233,8 @@ services:
 3. **プレイヤー削除**
    - 対象プレイヤーを選択し、削除確認ダイアログを表示してから実行。
 4. **データ永続化**
-   - ホワイトリスト情報はコンテナ内のファイル（例: whitelist.json）で管理。
-   - 将来的に外部ストレージや別コンテナ DB に移行可能な抽象化レイヤーを設けることが望ましい。
+  - 表示名などのメタ情報は `/data/players.json` に保存する。
+  - ホワイトリスト/バイパスリストは ARK サーバー側のリストファイル（`ShooterGame/Binaries/Win64/*.txt`）に反映する。
 
 ### 3.3 EOS ID とセーブデータ・マップの紐付け
 
@@ -226,13 +243,13 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
 
 **前提:**
 
-- `asa_main`, `asa_sub1` などのゲームサーバーコンテナは、`./ark_server:/opt/arkserver` をマウントしている。
+- `asa_main`, `asa_sub1` などのゲームサーバーコンテナは、`./asa_server:/opt/arkserver` をマウントしている。
 - asaui も同じボリュームを読み取り専用でマウントし、セーブデータを参照できるようにする。
 
 **要件:**
 
 - **ディレクトリスキャン:**
-  - `/opt/arkserver` 以下のセーブディレクトリ構造を走査し、EOS ID を含むファイル名やディレクトリ名からプレイヤーの所属マップを推定する。
+  - `ARK_SAVE_BASE_DIR`（デフォルト: `/opt/arkserver/ShooterGame/Saved/SavedArks`）配下のマップディレクトリを走査し、`${EOS_ID}.arkprofile` から最終ログインを推定する。
   - マップ名とディレクトリパスの対応は、設定ファイル等でマッピング可能にしておく（例: `TheIsland_WP`, `Extinction_WP` など）。
 - **UI 表示:**
   - 各プレイヤー行に「現在マップ」または「検出マップ一覧」を表示。
@@ -257,8 +274,7 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
   - イメージ名
   - 稼働時間（取得可能であれば）
 - **取得方法:**
-  - asaui コンテナ内から `docker` CLI を利用するか、ホストの Docker ソケットをマウントして API 経由で取得する設計を想定。
-  - 実装方針は開発者裁量だが、`docker exec` を利用する設計と整合性が取れるようにする。
+  - `/var/run/docker.sock` を通じて Docker API（dockerode）で取得する。
 
 ### 3.5 サイドコンテナ制御（start/stop）
 
@@ -273,12 +289,9 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
   - コンテナの増減は動的には扱わない（compose.yml を手動で編集・再起動する運用のため）。
   - UI 上でも「コンテナ追加/削除」機能は提供しない。
 
-**実装例:**
+**実装方針:**
 
-- `docker start asa_main`
-- `docker stop asa_main`
-
-などのコマンドを asaui から実行できるようにする（実際の実装では Docker API やラッパースクリプトを利用してもよい）。
+- Docker API（dockerode）で `start/stop/restart` を実行する。
 
 ---
 
@@ -288,21 +301,13 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
 
 **要件:**
 
-- サイドコンテナの制御には、以下の形式のコマンドを利用する。
-
-- `docker exec -itu arkuser asa_main <command>` を利用
-
-- UI からプリセットコマンドを実行可能にする
+- UI から start/stop/restart を実行可能にする。
 
 ### 4.2 RCON 操作
 
-- `docker exec -itu arkuser asa_sub1 manager rcon <params>` を利用
-
-- 任意コマンド送信フォーム
-
-- プリセットボタン
-
-- 結果を UI に表示
+- 対象コンテナ内で `manager rcon <command>` を Docker Exec 相当で実行する。
+- 実行対象は `ARK_MAP_MAIN`（未指定時は `ARK_SERVERS` の先頭）とする。
+- 任意コマンド送信フォームと結果表示を提供する。
 
 ---
 
@@ -362,10 +367,15 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
 
 ```
 asaui/
+  ├─ asa_server/     # ARK サーバーデータ永続化（compose.yml で /opt/arkserver にマウント）
+  ├─ asa_backup/     # バックアップ格納（asa_main が rw、asa_sub1 は restore-only で ro）
+  ├─ asa_ui/         # asaui 永続化データ（/data）
+  ├─ external/
+  │   └─ ARK_Ascended_Docker/  # 参照用サブモジュール（任意・実行しない）
   ├─ src/
-  │   ├─ frontend/
-  │   ├─ backend/
-  │   └─ config/
+  │   ├─ app/        # Next.js App Router (pages + API routes)
+  │   ├─ components/
+  │   └─ lib/
   ├─ Dockerfile
   ├─ package.json
   ├─ README.md

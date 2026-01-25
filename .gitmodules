@@ -1,0 +1,3 @@
+[submodule "external/ARK_Ascended_Docker"]
+	path = external/ARK_Ascended_Docker
+	url = https://github.com/MusclePr/ARK_Ascended_Docker.git
