@@ -37,3 +37,11 @@ next-env.d.ts
 /asa_server
 /asa_ui
 /asa_backup
+
+# asa_cluster (generated/secret)
+/asa_cluster/.env
+/asa_cluster/envfile
+/asa_cluster/.env.effective
+
+# external docs only (local)
+/external/ARK_Ascended_Docker/.env

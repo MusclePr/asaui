@@ -27,6 +27,9 @@ WORKDIR /app
 ENV NODE_ENV production
 # ENV NEXT_TELEMETRY_DISABLED 1
 
+# Needed for running `docker compose` against the host daemon via /var/run/docker.sock
+RUN apk add --no-cache docker-cli docker-cli-compose
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 

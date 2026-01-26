@@ -1,0 +1,9 @@
+# asaui managed override file (no comments in the real envfile)
+# Copy to `envfile` (untracked) or let asaui create it.
+
+MAX_PLAYERS=
+SERVER_PASSWORD=
+ARK_ADMIN_PASSWORD=
+MODS=
+ARK_EXTRA_OPTS=
+ARK_EXTRA_DASH_OPTS=

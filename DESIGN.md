@@ -8,11 +8,13 @@
 - **Styling:** Tailwind CSS
 - **Authentication:** NextAuth.js (Credentials Provider / Password)
 - **Container Orchestration:** Dockerode (Docker API wrapper)
+- **Cluster Control:** docker CLI / docker compose（コンテナ内から実行）
 - **Persistence:**
   - 表示名メタ情報: JSON (`/data/players.json`)
   - サーバー側リスト: テキスト（ホワイトリスト/バイパスリスト）
+  - asa_cluster 設定: `envfile`（上書き）と `.env.effective`（自動生成）
 - **Icons:** Lucide React
-- **Forms/Validation:** react-hook-form + zod
+- **Forms/Validation:** シンプルなフォーム + サーバー側バリデーション
 
 ### 1.2 コンテナ構成
 - **asaui:**
@@ -20,6 +22,7 @@
   - `/var/run/docker.sock` をマウントし、他コンテナを制御。
   - `/opt/arkserver` をマウントし、セーブデータ解析とサーバー側リスト更新を行う。
   - `/data` をマウントし、表示名などのメタ情報を永続化する。
+  - `/asa_cluster` をマウントし、asa_cluster の設定編集と `docker compose up/down` を行う。
 
 ---
 
@@ -32,6 +35,7 @@
 # asaui 認証設定
 ASAUI_PASSWORD=your_secure_password_here
 NEXTAUTH_SECRET=your_random_secret_string
+NEXTAUTH_URL=http://localhost:8080
 
 # 管理対象サーバー (既存)
 ARK_SERVERS="asa_main asa_sub1"
@@ -47,6 +51,15 @@ ARK_SAVE_BASE_DIR=/opt/arkserver/ShooterGame/Saved/SavedArks
 
 # RCON 実行対象 (未指定時は ARK_SERVERS の先頭)
 ARK_MAP_MAIN=asa_main
+
+# asa_cluster Settings
+# asa_cluster の compose / env を配置したディレクトリ（asaui コンテナ内パス）
+ASAUI_CLUSTER_DIR=/asa_cluster
+
+# CurseForge (optional)
+# MOD ID から名称/URL を引くために使用（未設定でも動作）
+CURSEFORGE_API_KEY=
+#CURSEFORGE_API_BASE_URL=https://api.curseforge.com
 ```
 
 ### 2.2 永続化データ
@@ -70,6 +83,13 @@ ARK: Ascended のサーバー側リストファイルを直接編集する。
 
 いずれも「1行=1つのEOS ID」のテキスト。ホワイトリストはサーバー再起動が必要になる。
 
+#### 2.2.3 asa_cluster 設定ファイル
+asaui は `ASAUI_CLUSTER_DIR` 配下のファイルを扱う。
+
+- ベース: `.env`（存在しない場合は `.env.sample` から初回生成）
+- 上書き: `envfile`（UI から編集。扱うキーは必要最小限に限定）
+- 有効設定: `.env.effective`（`.env` + `envfile` をマージして自動生成）
+
 ---
 
 ## 3. 機能詳細設計
@@ -82,13 +102,17 @@ ARK: Ascended のサーバー側リストファイルを直接編集する。
   2. マップフォルダ内の `.arkprofile` ファイルを全走査。
   3. ファイル名から EOS ID を、最終更新日時（mtime）から最終ログインを特定。
   4. 複数マップに同一 ID が存在する場合、mtime が最新のものを採用（現状は「検出マップ一覧」の保持は行わない）。
-  5. スキャン結果は API 経由でフロントエンドに返却し、手動リロードボタンで再実行可能。
+  5. スキャン結果は API 経由でフロントエンドに返却し、手動リロードボタンで再実行可能（現在のUIはマップ名表示は行わず、最終ログイン日時中心）。
 
 ### 3.2 サーバー制御
 - **コンテナ操作:** `docker.getContainer(id).start()` / `stop()`
 - **ログ取得:** （未実装/将来）`container.logs({ tail: 100, stdout: true, stderr: true })` 等で取得可能。
 - **RCON操作:** 
   - 対象コンテナ内で `manager rcon <command>` を実行（Docker Exec 相当）。
+
+### 3.3 asa_cluster 制御
+- **設定編集:** `ASAUI_CLUSTER_DIR/envfile` を編集し、`.env.effective` を自動生成。
+- **一括起動/停止:** `docker compose --env-file .env.effective -f compose.yml up -d` / `down` を `ASAUI_CLUSTER_DIR` で実行。
 
 ---
 
@@ -103,9 +127,11 @@ ARK: Ascended のサーバー側リストファイルを直接編集する。
   - Start/Stop ボタン。
   - 簡易ログビューア（モーダルまたは展開パネル）。
 
+※ ダッシュボードから asa_cluster の `up/down`（一括起動/停止）も実行可能。
+
 ### 4.3 プレイヤー/ホワイトリスト管理
 - プレイヤー一覧テーブル
-  - 任意名、EOS ID、現在のマップ（バッジ）、全検出マップ、最終ログイン日時。
+  - 任意名（表示名）、EOS ID、最終ログイン日時、ホワイトリスト/バイパスの状態。
   - 削除ボタン。
 - ホワイトリスト追加フォーム（EOS ID, 名前）。
 - 「セーブスキャン実行」ボタン。
@@ -114,6 +140,10 @@ ARK: Ascended のサーバー側リストファイルを直接編集する。
 - サーバー選択セレクトボックス。
 - コマンド入力フォーム + 履歴/プリセットボタン（Broadcast, SaveWorld等）。
 - 実行結果出力エリア。
+
+### 4.5 設定（asa_cluster）
+- `asa_cluster` の `.env` / `envfile` を編集し、`.env.effective` を生成。
+- MODS の編集補助（CurseForge API が設定されていれば名称表示）。
 
 ---
 

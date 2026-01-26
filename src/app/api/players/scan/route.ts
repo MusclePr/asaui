@@ -3,8 +3,12 @@ import fs from "fs";
 import path from "path";
 import { ARK_SAVE_BASE_DIR, SERVERS } from "@/lib/config";
 import { getBypassList, getPlayerProfiles, getWhitelist } from "@/lib/storage";
+import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 
 export async function GET() {
+  const session = await requireSession();
+  if (!session) return unauthorizedResponse();
+
   try {
     const whitelist = getWhitelist();
     const bypassList = getBypassList();

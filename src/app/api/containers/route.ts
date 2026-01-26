@@ -1,7 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { getContainers } from "@/lib/docker";
 
 export async function GET() {
+  const session = await requireSession();
+  if (!session) return unauthorizedResponse();
+
   try {
     const containers = await getContainers();
     return NextResponse.json(containers);

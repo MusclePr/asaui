@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { addToBypassList, addToWhitelist, setPlayerDisplayName } from "@/lib/storage";
 import { execRcon } from "@/lib/docker";
 import { SERVERS } from "@/lib/config";
 
 export async function POST(req: NextRequest) {
+  const session = await requireSession();
+  if (!session) return unauthorizedResponse();
+
   try {
     const { eosId, whitelist, bypass, displayName, name } = await req.json();
     if (!eosId) return NextResponse.json({ error: "EOS ID required" }, { status: 400 });

@@ -1,19 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
-import { manageContainer } from "@/lib/docker";
+import { fetchCurseForgeMod } from "@/lib/curseforge";
 
-export async function POST(
-  req: NextRequest,
+export async function GET(
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
 
   try {
-    const { action } = await req.json();
     const { id } = await params;
-    await manageContainer(id, action);
-    return NextResponse.json({ success: true });
+    if (!/^\d+$/.test(id)) {
+      return NextResponse.json({ error: "Invalid mod id" }, { status: 400 });
+    }
+
+    const mod = await fetchCurseForgeMod(id);
+    return NextResponse.json(mod);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
