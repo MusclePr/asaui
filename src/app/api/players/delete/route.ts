@@ -13,13 +13,13 @@ export async function POST(req: NextRequest) {
     if (!eosId) return NextResponse.json({ error: "EOS ID required" }, { status: 400 });
 
     removeFromWhitelist(eosId);
-    // バイパスリストの操作は、RCON コマンドで反映されるため、ここではファイル出力を実行しない
-    // removeFromBypassList(eosId);
+    // バイパスリストの削除をファイルに反映し、RCONコマンドでの即時反映を試みる（失敗してもファイルからは削除される）
+    removeFromBypassList(eosId);
     setPlayerDisplayName(eosId, null);
 
     const targets = SERVERS.map(server => server.id).filter(Boolean);
     // ホワイトリストに追加・削除するコマンドは存在しないため、ここではDisallowPlayerToJoinNoCheckコマンドのみ実行する
-    await Promise.all([
+    await Promise.allSettled([
       // ...targets.map(id => execRcon(id, `DisallowPlayerToJoin ${eosId}`)),
       ...targets.map(id => execRcon(id, `DisallowPlayerToJoinNoCheck ${eosId}`))
     ]);

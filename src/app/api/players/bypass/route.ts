@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     addToBypassList(eosId);
     const targets = SERVERS.map(server => server.id).filter(Boolean);
-    await Promise.all(targets.map(id => execRcon(id, `AllowPlayerToJoinNoCheck ${eosId}`)));
+    await Promise.allSettled(targets.map(id => execRcon(id, `AllowPlayerToJoinNoCheck ${eosId}`)));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -32,7 +32,7 @@ export async function DELETE(req: NextRequest) {
 
     removeFromBypassList(eosId);
     const targets = SERVERS.map(server => server.id).filter(Boolean);
-    await Promise.all(targets.map(id => execRcon(id, `DisallowPlayerToJoinNoCheck ${eosId}`)));
+    await Promise.allSettled(targets.map(id => execRcon(id, `DisallowPlayerToJoinNoCheck ${eosId}`)));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
