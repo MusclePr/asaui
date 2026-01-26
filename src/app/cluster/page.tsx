@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { Save, Plus, Trash2, RefreshCcw } from "lucide-react";
+import { PasswordInput } from "@/components/PasswordInput";
 
 type Settings = {
   MAX_PLAYERS: number;
@@ -335,8 +336,7 @@ export default function ClusterSettingsPage() {
                       デフォルトに戻す
                     </button>
                   </div>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={settings.SERVER_PASSWORD}
                     onChange={(e) =>
                       setSettings((prev) => ({
@@ -364,8 +364,7 @@ export default function ClusterSettingsPage() {
                       デフォルトに戻す
                     </button>
                   </div>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={settings.ARK_ADMIN_PASSWORD}
                     onChange={(e) =>
                       setSettings((prev) => ({

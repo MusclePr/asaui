@@ -3,6 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { LogIn } from "lucide-react";
+import { PasswordInput } from "./PasswordInput";
 
 export default function LoginButton() {
   const [password, setPassword] = useState("");
@@ -29,8 +30,7 @@ export default function LoginButton() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <input
-          type="password"
+        <PasswordInput
           placeholder="管理パスワード"
           className="w-full px-3 py-2 border rounded-md bg-background"
           value={password}
