@@ -9,6 +9,6 @@ export const SERVERS = ARK_SERVERS.map(id => ({
 }));
 
 export const ARK_MAP_MAIN = process.env.ARK_MAP_MAIN || ARK_SERVERS[0] || "";
-export const ARK_SAVE_BASE_DIR = process.env.ARK_SAVE_BASE_DIR || "/opt/arkserver/ShooterGame/Saved/SavedArks";
+export const ARK_SAVE_BASE_DIR = process.env.ARK_SAVE_BASE_DIR || "/cluster/server/ShooterGame/Saved/SavedArks";
 
 export const EXPOSE_URL = process.env.EXPOSE_URL || "";

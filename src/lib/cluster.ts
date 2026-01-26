@@ -1,10 +1,10 @@
 import path from "node:path";
 
-export const CLUSTER_DIR = process.env.ASAUI_CLUSTER_DIR || "/asa_cluster";
+export const CLUSTER_DIR = process.env.ASAUI_CLUSTER_DIR || "/cluster";
 
 export const CLUSTER_COMPOSE_FILE = path.join(CLUSTER_DIR, "compose.yml");
 export const CLUSTER_ENV_DEFAULT_FILE = path.join(CLUSTER_DIR, ".env");
-export const CLUSTER_ENV_OVERRIDE_FILE = path.join(CLUSTER_DIR, "envfile");
+export const CLUSTER_ENV_OVERRIDE_FILE = path.join(CLUSTER_DIR, ".env.edit");
 export const CLUSTER_ENV_EFFECTIVE_FILE = path.join(CLUSTER_DIR, ".env.effective");
 
 export const CURSEFORGE_API_KEY = process.env.CURSEFORGE_API_KEY || "";

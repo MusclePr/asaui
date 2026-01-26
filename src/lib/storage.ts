@@ -5,7 +5,7 @@ import { ARK_SAVE_BASE_DIR } from './config';
 const ARK_GAME_DIR = path.resolve(ARK_SAVE_BASE_DIR, "..", "..");
 const WHITELIST_FILE = path.join(ARK_GAME_DIR, "Binaries", "Win64", "PlayersExclusiveJoinList.txt");
 const BYPASS_FILE = path.join(ARK_GAME_DIR, "Binaries", "Win64", "PlayersJoinNoCheckList.txt");
-const PLAYERS_META_FILE = "/data/players.json";
+const PLAYERS_META_FILE = "/cluster/players.json";
 
 type PlayerMeta = {
   displayName: string;

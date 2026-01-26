@@ -40,10 +40,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# /data directory for whitelist.json
-RUN mkdir -p /data
+# /cluster directory for players.json and cluster config
+RUN mkdir -p /cluster
 
-VOLUME /data
+VOLUME /cluster
 
 # USER nextjs
 

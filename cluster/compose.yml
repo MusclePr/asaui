@@ -17,8 +17,8 @@ services:
       AUTO_UPDATE_CRON_EXPRESSION: "0 4 * * 0"
       SLAVE_PORTS: "7791"
     volumes:
-      - ../asa_server:/opt/arkserver
-      - ../asa_backup:/var/backups
+      - ./server:/opt/arkserver
+      - ./backups:/var/backups
     ports:
       - "7790:7790/udp"
       - "27030:27030/udp"
@@ -40,8 +40,8 @@ services:
       AUTO_UPDATE_ENABLED: "false"
       LOG_FILE: "ShooterGame_sub1.log"
     volumes:
-      - ../asa_server:/opt/arkserver
-      - ../asa_backup:/var/backups:ro # restore only
+      - ./server:/opt/arkserver
+      - ./backups:/var/backups:ro # restore only
     ports:
       - "7791:7791/udp"
       - "27031:27031/udp"

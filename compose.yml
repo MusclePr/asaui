@@ -7,9 +7,7 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./asa_server:/opt/arkserver
-      - ./asa_ui:/data
-      - ./asa_cluster:/asa_cluster
+      - ./cluster:/cluster
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8080:3000"

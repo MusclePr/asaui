@@ -15,7 +15,7 @@ import { runDockerCompose } from "@/lib/compose";
 type Action = "up" | "down";
 
 function ensureEffectiveEnvExists() {
-  // Minimal generation: base .env (or .env.sample) merged with override envfile.
+  // Minimal generation: base .env (or .env.sample) merged with override .env.edit.
   const basePath = fs.existsSync(CLUSTER_ENV_DEFAULT_FILE)
     ? CLUSTER_ENV_DEFAULT_FILE
     : path.join(CLUSTER_DIR, ".env.sample");

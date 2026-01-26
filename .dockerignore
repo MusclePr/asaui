@@ -4,9 +4,11 @@ node_modules
 .env
 .env.local
 *.log
-asa_server
-asa_ui
-asa_backup
+cluster/server
+cluster/backups
+cluster/players.json
+cluster/.env.edit
+cluster/.env.effective
 src/app/ShooterGame
 src/app/Engine
 src/app/*.txt

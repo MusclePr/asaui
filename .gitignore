@@ -34,14 +34,12 @@ next-env.d.ts
 
 # app and data (for local development)
 /.env
-/asa_server
-/asa_ui
-/asa_backup
+/cluster/server
+/cluster/backups
+/cluster/players.json
 
-# asa_cluster (generated/secret)
-/asa_cluster/.env
-/asa_cluster/envfile
-/asa_cluster/.env.effective
+# cluster (generated/secret)
+/cluster/.*
 
 # external docs only (local)
 /external/ARK_Ascended_Docker/.env

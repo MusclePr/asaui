@@ -3,13 +3,13 @@
 ## 1. プロジェクト概要
 
 **目的:**  
-`ARK_Ascended_Docker` ベースの ARK サーバー群（`asa_main`, `asa_sub1` など）を制御・可視化する専用 Web UI「asaui」を開発する。asaui は Docker コンテナとして提供され、UI 自体はリポジトリルートの `compose.yml`（asaui）で起動し、ARK サーバーは `asa_cluster/compose.yml` を別 compose として運用する。
+`ARK_Ascended_Docker` ベースの ARK サーバー群（`asa_main`, `asa_sub1` など）を制御・可視化する専用 Web UI「asaui」を開発する。asaui は Docker コンテナとして提供され、UI 自体はリポジトリルートの `compose.yml`（asaui）で起動し、ARK サーバーは `cluster/compose.yml` を別 compose として運用する。
 
 asaui は以下を提供する:
 
 - Docker API（`/var/run/docker.sock`）経由で、`ARK_SERVERS` に一致するコンテナの状態表示・start/stop/restart
-- `ASAUI_CLUSTER_DIR` 配下の compose/env を利用した、`docker compose up/down` による asa_cluster の一括起動/停止
-- asa_cluster の env 上書き（`envfile`）と `.env.effective` 自動生成
+- `ASAUI_CLUSTER_DIR` 配下の compose/env を利用した、`docker compose up/down` による cluster の一括起動/停止
+- cluster の env 上書き（`.env.edit`）と `.env.effective` 自動生成
 
 **対象リポジトリ:**
 
@@ -97,15 +97,13 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./asa_server:/opt/arkserver
-      - ./asa_ui:/data
-      - ./asa_cluster:/asa_cluster
+      - ./cluster:/cluster
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8080:3000"
 ```
 
-ARK サーバー群は [asa_cluster/compose.yml](asa_cluster/compose.yml) で運用し、asaui から一括 `up/down` を実行する。
+ARK サーバー群は [cluster/compose.yml](cluster/compose.yml) で運用し、asaui から一括 `up/down` を実行する。
 
 ---
 
@@ -113,17 +111,17 @@ ARK サーバー群は [asa_cluster/compose.yml](asa_cluster/compose.yml) で運
 
 ### 2.1 既存サービス概要
 
-既存の ARK サーバー群（`asa_main`, `asa_sub1` など）は、asa_cluster 側の compose（[asa_cluster/compose.yml](asa_cluster/compose.yml)）に定義される。
+既存の ARK サーバー群（`asa_main`, `asa_sub1` など）は、cluster 側の compose（[cluster/compose.yml](cluster/compose.yml)）に定義される。
 
 - **asa_main**
   - **image:** `ghcr.io/musclepr/ark_ascended_docker:latest`
   - **container_name:** `asa_main`
-  - **volumes:** `./asa_server:/opt/arkserver`, `./asa_backup:/var/backups`
+  - **volumes:** `./cluster/server:/cluster/server`, `./cluster/backups:/var/backups`
   - **ports:** `7790:7790/udp`, `27030:27030/udp`
 - **asa_sub1**
   - **image:** `ghcr.io/musclepr/ark_ascended_docker:latest` ... 共通
   - **container_name:** `asa_sub1`
-  - **volumes:** `./asa_server:/opt/arkserver`, `./asa_backup:/var/backups:ro` ... backup は、asa_main 任せのため、read only とされている。
+  - **volumes:** `./cluster/server:/cluster/server`, `./cluster/backups:/var/backups:ro` ... backup は、asa_main 任せのため、read only とされている。
   - **ports:** `7791:7791/udp`, `27031:27031/udp`
 
 ### 2.2 asaui サービス追加要件
@@ -138,14 +136,14 @@ ARK サーバー群は [asa_cluster/compose.yml](asa_cluster/compose.yml) で運
 - **起動点:**
   - 運用・起動は常に本リポジトリルートの `compose.yml` を使用する（参照用サブモジュール側の compose は使用しない）。
 - **ボリューム:**
-  - `./asa_server:/opt/arkserver`（セーブデータ参照およびサーバー側リストファイル更新のため）
-  - `./asa_ui:/data`（表示名などのメタ情報を JSON で永続化）
-  - `./asa_cluster:/asa_cluster`（asa_cluster の env 編集・compose up/down のため）
+  - `./cluster/server:/cluster/server`（セーブデータ参照およびサーバー側リストファイル更新のため）
+  - `./cluster:/data`（表示名などのメタ情報を JSON で永続化）
+  - `./cluster:/cluster`（cluster の env 編集・compose up/down のため）
   - `/var/run/docker.sock:/var/run/docker.sock` ホストの docker コマンドと同等に扱えるようにするため。
 - **環境変数**
   - `.env` を使用する。`ARK_SERVERS` から制御対象コンテナを決定し、`SRV_<id>_MAP` で各コンテナに対応するマップ名を与える。
   - 認証用に `ASAUI_PASSWORD` と `NEXTAUTH_SECRET` を必須とする。
-  - `ASAUI_CLUSTER_DIR`（デフォルト: `/asa_cluster`）を指定可能。
+  - `ASAUI_CLUSTER_DIR`（デフォルト: `/cluster`）を指定可能。
 - **ネットワーク:**
   - 既存サービスと同一ネットワーク（デフォルトブリッジで問題なければそれを利用）
 - **ポート:**
@@ -186,7 +184,7 @@ ARK サーバー群は [asa_cluster/compose.yml](asa_cluster/compose.yml) で運
 3. **プレイヤー削除**
    - 対象プレイヤーを選択し、削除確認ダイアログを表示してから実行。
 4. **データ永続化**
-  - 表示名などのメタ情報は `/data/players.json` に保存する。
+  - 表示名などのメタ情報は `/cluster/players.json` に保存する。
   - ホワイトリスト/バイパスリストは ARK サーバー側のリストファイル（`ShooterGame/Binaries/Win64/*.txt`）に反映する。
 
 ### 3.3 EOS ID とセーブデータ・マップの紐付け
@@ -196,13 +194,13 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
 
 **前提:**
 
-- `asa_main`, `asa_sub1` などのゲームサーバーコンテナは、`./asa_server:/opt/arkserver` をマウントしている。
+- `asa_main`, `asa_sub1` などのゲームサーバーコンテナは、`./cluster/server:/cluster/server` をマウントしている。
 - asaui も同じボリュームを読み取り専用でマウントし、セーブデータを参照できるようにする。
 
 **要件:**
 
 - **ディレクトリスキャン:**
-  - `ARK_SAVE_BASE_DIR`（デフォルト: `/opt/arkserver/ShooterGame/Saved/SavedArks`）配下のマップディレクトリを走査し、`${EOS_ID}.arkprofile` から最終ログインを推定する。
+  - `ARK_SAVE_BASE_DIR`（デフォルト: `/cluster/server/ShooterGame/Saved/SavedArks`）配下のマップディレクトリを走査し、`${EOS_ID}.arkprofile` から最終ログインを推定する。
   - マップ名とディレクトリパスの対応は、設定ファイル等でマッピング可能にしておく（例: `TheIsland_WP`, `Extinction_WP` など）。
 - **UI 表示:**
   - 現状は「最終ログイン日時」を中心に表示し、マップ一覧の表示は将来拡張とする。
@@ -319,10 +317,10 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
 
 ```
 asaui/
-  ├─ asa_server/     # ARK サーバーデータ永続化（compose.yml で /opt/arkserver にマウント）
-  ├─ asa_backup/     # バックアップ格納（asa_main が rw、asa_sub1 は restore-only で ro）
-  ├─ asa_cluster/    # ARK サーバー群の compose / env（asaui から一括 up/down・設定編集）
-  ├─ asa_ui/         # asaui 永続化データ（/data）
+  ├─ cluster/server/     # ARK サーバーデータ永続化（compose.yml で /cluster/server にマウント）
+  ├─ cluster/backups/     # バックアップ格納（asa_main が rw、asa_sub1 は restore-only で ro）
+  ├─ cluster/    # ARK サーバー群の compose / env（asaui から一括 up/down・設定編集）
+  ├─ cluster/         # asaui 永続化データ（/data）
   ├─ external/
   │   └─ ARK_Ascended_Docker/  # 参照用サブモジュール（任意・実行しない）
   ├─ src/
