@@ -4,9 +4,6 @@
 SERVER_MAP=TheIsland_WP
 SESSION_NAME="[TEST] A-B-C-D.COM - アイランド"
 
-# Discord Notifications
-DISCORD_WEBHOOK_URL=
-
 # Backup Settings
 AUTO_BACKUP_ENABLED=true
 AUTO_BACKUP_CRON_EXPRESSION="0 3 * * *"

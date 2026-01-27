@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import AppLayout from "@/components/AppLayout";
 import { Save, Plus, Trash2, RefreshCcw } from "lucide-react";
 import { PasswordInput } from "@/components/PasswordInput";
@@ -36,6 +37,8 @@ function joinModsCsv(ids: string[]): string {
 }
 
 export default function ClusterSettingsPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -322,67 +325,69 @@ export default function ClusterSettingsPage() {
               </div>
             </div>
 
-            <div className="p-6 bg-card border rounded-lg space-y-4">
-              <h3 className="text-lg font-semibold">パスワード</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="text-sm font-medium">SERVER_PASSWORD</label>
-                    <button
-                      onClick={() => resetPassword("SERVER_PASSWORD")}
-                      className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                      type="button"
-                    >
-                      デフォルトに戻す
-                    </button>
+            {isAdmin && (
+              <div className="p-6 bg-card border rounded-lg space-y-4">
+                <h3 className="text-lg font-semibold">パスワード</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-sm font-medium">SERVER_PASSWORD</label>
+                      <button
+                        onClick={() => resetPassword("SERVER_PASSWORD")}
+                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                        type="button"
+                      >
+                        デフォルトに戻す
+                      </button>
+                    </div>
+                    <PasswordInput
+                      value={settings.SERVER_PASSWORD}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          SERVER_PASSWORD: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border rounded bg-background"
+                      maxLength={32}
+                      placeholder="（空なら未設定）"
+                    />
+                    <p className="text-xs text-muted-foreground">空白/改行/#/'/\" は禁止（.env破壊防止）</p>
+                    <p className="text-xs text-muted-foreground">
+                      デフォルト: <span className="font-mono">{defaults.SERVER_PASSWORD || "(empty)"}</span>
+                    </p>
                   </div>
-                  <PasswordInput
-                    value={settings.SERVER_PASSWORD}
-                    onChange={(e) =>
-                      setSettings((prev) => ({
-                        ...prev,
-                        SERVER_PASSWORD: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border rounded bg-background"
-                    maxLength={32}
-                    placeholder="（空なら未設定）"
-                  />
-                  <p className="text-xs text-muted-foreground">空白/改行/#/'/\" は禁止（.env破壊防止）</p>
-                  <p className="text-xs text-muted-foreground">
-                    デフォルト: <span className="font-mono">{defaults.SERVER_PASSWORD || "(empty)"}</span>
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="text-sm font-medium">ARK_ADMIN_PASSWORD</label>
-                    <button
-                      onClick={() => resetPassword("ARK_ADMIN_PASSWORD")}
-                      className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                      type="button"
-                    >
-                      デフォルトに戻す
-                    </button>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-sm font-medium">ARK_ADMIN_PASSWORD</label>
+                      <button
+                        onClick={() => resetPassword("ARK_ADMIN_PASSWORD")}
+                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                        type="button"
+                      >
+                        デフォルトに戻す
+                      </button>
+                    </div>
+                    <PasswordInput
+                      value={settings.ARK_ADMIN_PASSWORD}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          ARK_ADMIN_PASSWORD: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border rounded bg-background"
+                      maxLength={32}
+                      placeholder="（空なら未設定）"
+                    />
+                    <p className="text-xs text-muted-foreground">空白/改行/#/'/\" は禁止（.env破壊防止）</p>
+                    <p className="text-xs text-muted-foreground">
+                      デフォルト: <span className="font-mono">{defaults.ARK_ADMIN_PASSWORD || "(empty)"}</span>
+                    </p>
                   </div>
-                  <PasswordInput
-                    value={settings.ARK_ADMIN_PASSWORD}
-                    onChange={(e) =>
-                      setSettings((prev) => ({
-                        ...prev,
-                        ARK_ADMIN_PASSWORD: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border rounded bg-background"
-                    maxLength={32}
-                    placeholder="（空なら未設定）"
-                  />
-                  <p className="text-xs text-muted-foreground">空白/改行/#/'/\" は禁止（.env破壊防止）</p>
-                  <p className="text-xs text-muted-foreground">
-                    デフォルト: <span className="font-mono">{defaults.ARK_ADMIN_PASSWORD || "(empty)"}</span>
-                  </p>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="p-6 bg-card border rounded-lg space-y-4">
               <div className="flex items-center justify-between gap-4">
@@ -473,73 +478,75 @@ export default function ClusterSettingsPage() {
               </div>
             </div>
 
-            <div className="p-6 bg-card border rounded-lg space-y-4">
-              <h3 className="text-lg font-semibold">追加オプション</h3>
+            {isAdmin && (
+              <div className="p-6 bg-card border rounded-lg space-y-4">
+                <h3 className="text-lg font-semibold">追加オプション</h3>
 
-              <details className="border rounded p-4 bg-background">
-                <summary className="cursor-pointer select-none font-medium">
-                  ARK_EXTRA_OPTS（クリックで展開）
-                </summary>
-                <div className="pt-4 space-y-2">
-                  <div className="flex items-center justify-end">
-                    <button
-                      onClick={() => resetExtra("ARK_EXTRA_OPTS")}
-                      className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                      type="button"
-                    >
-                      デフォルトに戻す
-                    </button>
+                <details className="border rounded p-4 bg-background">
+                  <summary className="cursor-pointer select-none font-medium">
+                    ARK_EXTRA_OPTS（クリックで展開）
+                  </summary>
+                  <div className="pt-4 space-y-2">
+                    <div className="flex items-center justify-end">
+                      <button
+                        onClick={() => resetExtra("ARK_EXTRA_OPTS")}
+                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                        type="button"
+                      >
+                        デフォルトに戻す
+                      </button>
+                    </div>
+                    <textarea
+                      value={settings.ARK_EXTRA_OPTS}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          ARK_EXTRA_OPTS: e.target.value,
+                        }))
+                      }
+                      className="w-full min-h-[140px] px-3 py-2 border rounded bg-background whitespace-pre-wrap break-words"
+                      placeholder="?ServerCrosshair=true?..."
+                    />
+                    <p className="text-xs text-muted-foreground">改行/#/'/\" は禁止（.env破壊防止）</p>
+                    <p className="text-xs text-muted-foreground">
+                      デフォルト: <span className="font-mono">{defaults.ARK_EXTRA_OPTS || "(empty)"}</span>
+                    </p>
                   </div>
-                  <textarea
-                    value={settings.ARK_EXTRA_OPTS}
-                    onChange={(e) =>
-                      setSettings((prev) => ({
-                        ...prev,
-                        ARK_EXTRA_OPTS: e.target.value,
-                      }))
-                    }
-                    className="w-full min-h-[140px] px-3 py-2 border rounded bg-background whitespace-pre-wrap break-words"
-                    placeholder="?ServerCrosshair=true?..."
-                  />
-                  <p className="text-xs text-muted-foreground">改行/#/'/\" は禁止（.env破壊防止）</p>
-                  <p className="text-xs text-muted-foreground">
-                    デフォルト: <span className="font-mono">{defaults.ARK_EXTRA_OPTS || "(empty)"}</span>
-                  </p>
-                </div>
-              </details>
+                </details>
 
-              <details className="border rounded p-4 bg-background">
-                <summary className="cursor-pointer select-none font-medium">
-                  ARK_EXTRA_DASH_OPTS（クリックで展開）
-                </summary>
-                <div className="pt-4 space-y-2">
-                  <div className="flex items-center justify-end">
-                    <button
-                      onClick={() => resetExtra("ARK_EXTRA_DASH_OPTS")}
-                      className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                      type="button"
-                    >
-                      デフォルトに戻す
-                    </button>
+                <details className="border rounded p-4 bg-background">
+                  <summary className="cursor-pointer select-none font-medium">
+                    ARK_EXTRA_DASH_OPTS（クリックで展開）
+                  </summary>
+                  <div className="pt-4 space-y-2">
+                    <div className="flex items-center justify-end">
+                      <button
+                        onClick={() => resetExtra("ARK_EXTRA_DASH_OPTS")}
+                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                        type="button"
+                      >
+                        デフォルトに戻す
+                      </button>
+                    </div>
+                    <textarea
+                      value={settings.ARK_EXTRA_DASH_OPTS}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          ARK_EXTRA_DASH_OPTS: e.target.value,
+                        }))
+                      }
+                      className="w-full min-h-[140px] px-3 py-2 border rounded bg-background whitespace-pre-wrap break-words"
+                      placeholder="-ForceAllowCaveFlyers ..."
+                    />
+                    <p className="text-xs text-muted-foreground">改行/#/'/\" は禁止（.env破壊防止）</p>
+                    <p className="text-xs text-muted-foreground">
+                      デフォルト: <span className="font-mono">{defaults.ARK_EXTRA_DASH_OPTS || "(empty)"}</span>
+                    </p>
                   </div>
-                  <textarea
-                    value={settings.ARK_EXTRA_DASH_OPTS}
-                    onChange={(e) =>
-                      setSettings((prev) => ({
-                        ...prev,
-                        ARK_EXTRA_DASH_OPTS: e.target.value,
-                      }))
-                    }
-                    className="w-full min-h-[140px] px-3 py-2 border rounded bg-background whitespace-pre-wrap break-words"
-                    placeholder="-ForceAllowCaveFlyers ..."
-                  />
-                  <p className="text-xs text-muted-foreground">改行/#/'/\" は禁止（.env破壊防止）</p>
-                  <p className="text-xs text-muted-foreground">
-                    デフォルト: <span className="font-mono">{defaults.ARK_EXTRA_DASH_OPTS || "(empty)"}</span>
-                  </p>
-                </div>
-              </details>
-            </div>
+                </details>
+              </div>
+            )}
           </div>
         )}
       </div>

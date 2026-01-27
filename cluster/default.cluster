@@ -1,18 +1,31 @@
 # cluster default env
 # NOTE: asaui will generate .cluster and use that for docker compose.
 
+# Time Zone
 TZ=Asia/Tokyo
 
+# Passwords
 ARK_ADMIN_PASSWORD=MyArkAdminPassword
 SERVER_PASSWORD=
+
+# Discord Notifications
 DISCORD_WEBHOOK_URL=
 
+# Backup & Update using master(main) only
 AUTO_BACKUP_ENABLED=false
 AUTO_UPDATE_ENABLED=false
+
+# Defaults
 DISABLE_BATTLEYE=1
 MAX_PLAYERS=10
 RCON_PORT=32330
+
+# Mods: Please provide a comma seperated list of the curse-forge modIDs and uncomment the MODS arg
+# e.g. MODS=931872,931338
 MODS=929800,929420,935408,928793,933975,929578,930494,933447,941697,935528,936145,1002660,929785,930381
+
+# Enable ServerGameLog
+SERVERGAMELOG=true
 
 ARK_EXTRA_DASH_OPTS=-exclusivejoin -ForceAllowCaveFlyers -ForceRespawnDinos -AllowRaidDinoFeeding=true -ServerPlatform=ALL -RedownloadModsOnServerRestart
 ARK_EXTRA_OPTS=?ServerCrosshair=true?OverrideStructurePlatformPrevention=true?OverrideOfficialDifficulty=5.0?ShowFloatingDamageText=true?AllowFlyerCarryPvE=true

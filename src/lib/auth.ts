@@ -10,12 +10,29 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (credentials?.password === process.env.ASAUI_PASSWORD) {
-          return { id: "admin", name: "Administrator" };
+          return { id: "admin", name: "Administrator", role: "admin" } as any;
+        }
+        if (process.env.ASAUI_SIMPLE_PASSWORD && credentials?.password === process.env.ASAUI_SIMPLE_PASSWORD) {
+          return { id: "simple", name: "Viewer", role: "simple" } as any;
         }
         return null;
       },
     }),
   ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = (user as any).role;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        (session.user as any).role = token.role;
+      }
+      return session;
+    },
+  },
   pages: {
     signIn: "/login",
   },

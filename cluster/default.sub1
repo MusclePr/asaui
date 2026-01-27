@@ -4,8 +4,5 @@
 SERVER_MAP=Extinction_WP
 SESSION_NAME="[TEST] A-B-C-D.COM - エクスティンクション"
 
-# Discord Notifications
-DISCORD_WEBHOOK_URL=
-
 # Avoid conflict with other servers' log files
 #LOG_FILE="ShooterGame_sub1.log"
