@@ -85,6 +85,29 @@ export default function Dashboard() {
     }
   };
 
+  const handleKick = async (containerName: string, eosId: string, playerName: string) => {
+    if (!confirm(`プレイヤー 「${playerName}」 を KICK しますか？`)) return;
+    
+    try {
+      const res = await fetch("/api/rcon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          containerId: containerName,
+          command: `KickPlayer ${eosId}`
+        }),
+      });
+      const data = await res.json();
+      if (data.output) {
+        alert(data.output);
+      }
+      fetchStatus();
+    } catch (err) {
+      console.error(err);
+      alert("KICK コマンドの送信に失敗しました。");
+    }
+  };
+
   const handleCluster = async (action: "up" | "down") => {
     setClusterBusy(action);
     setClusterLog(null);
@@ -340,6 +363,26 @@ export default function Dashboard() {
                     <p className="truncate">{c.status}</p>
                   </div>
                 </div>
+
+                {c.onlinePlayers && c.onlinePlayers.length > 0 && (
+                  <div className="bg-secondary/30 p-2 rounded text-xs space-y-1">
+                    <p className="text-muted-foreground font-medium">接続中のプレイヤー ({c.onlinePlayers.length})</p>
+                    <div className="flex flex-wrap gap-1">
+                      {c.onlinePlayers.map((player, idx) => (
+                        <div key={idx} className="bg-background/50 pl-1.5 pr-0.5 py-0.5 rounded border border-secondary/50 flex items-center gap-1 group">
+                          <span>{player.name}</span>
+                          <button
+                            onClick={() => handleKick(c.name, player.eosId, player.name)}
+                            className="p-0.5 hover:bg-destructive hover:text-destructive-foreground rounded transition-colors text-muted-foreground"
+                            title="KICK"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-2 pt-2">
                   {c.state !== 'running' ? (

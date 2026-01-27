@@ -10,6 +10,7 @@ export interface ContainerStatus {
   mapRaw?: string; // Raw name (e.g. TheIsland_WP)
   sessionName?: string;
   isManaged?: boolean; // Whether it's an ARK server we manage
+  onlinePlayers?: { name: string; eosId: string }[]; // List of currently connected players
 }
 
 export interface PlayerInfo {

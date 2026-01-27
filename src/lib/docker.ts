@@ -2,6 +2,7 @@ import Docker from 'dockerode';
 import { ContainerStatus } from '@/types';
 import { getServers } from './config';
 import { getMapDisplayName } from './maps';
+import { getPlayerProfiles } from './storage';
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
@@ -24,6 +25,8 @@ export async function getContainers(): Promise<ContainerStatus[]> {
       }
 
       let isStopping = false;
+      let onlinePlayers: { name: string; eosId: string }[] | undefined = undefined;
+
       if (container.State === 'running') {
         try {
           // Check for shutdown signal in recent logs
@@ -41,9 +44,14 @@ export async function getContainers(): Promise<ContainerStatus[]> {
           if (logText.includes("Received shutdown signal. Exiting...")) {
             isStopping = true;
           }
+
+          // If healthy, try to get player list
+          if (health === 'healthy') {
+            onlinePlayers = await getOnlinePlayers(container.Id);
+          }
         } catch (e) {
           // Ignore log fetch errors but log to console
-          console.warn(`Failed to check logs for stopping state on ${server.id}:`, e);
+          console.warn(`Failed to check state for ${server.id}:`, e);
         }
       }
 
@@ -55,6 +63,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         status: container.Status,
         health,
         isStopping,
+        onlinePlayers,
         map: getMapDisplayName(server.map),
         mapRaw: server.map,
         sessionName: server.sessionName,
@@ -82,6 +91,37 @@ export async function manageContainer(id: string, action: string) {
     case "start": await container.start(); break;
     case "stop": await container.stop(); break;
     case "restart": await container.restart(); break;
+  }
+}
+
+export async function getOnlinePlayers(containerIdOrName: string): Promise<{ name: string; eosId: string }[]> {
+  try {
+    const output = await execRcon(containerIdOrName, "listplayers");
+    if (!output || output.startsWith("No Players")) {
+      return [];
+    }
+
+    // Pattern: 0. Name, EOSID (maybe more on same line or separate lines)
+    // Regex matches: index. followed by name, then comma, then EOSID (32 hex chars)
+    const playerRegex = /\d+\.\s+([^,]+),\s+([a-f0-9]{32})/g;
+    const profiles = getPlayerProfiles();
+    const onlinePlayers: { name: string; eosId: string }[] = [];
+    
+    let match;
+    while ((match = playerRegex.exec(output)) !== null) {
+      const ingameName = match[1].trim();
+      const eosId = match[2].trim();
+      const profile = profiles[eosId];
+      
+      const displayName = (profile && profile.displayName) ? profile.displayName : ingameName;
+      
+      onlinePlayers.push({ name: displayName, eosId });
+    }
+    
+    return onlinePlayers;
+  } catch (e) {
+    console.warn(`Failed to get online players for ${containerIdOrName}:`, e);
+    return [];
   }
 }
 
