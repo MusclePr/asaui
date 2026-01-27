@@ -1,0 +1,18 @@
+# main default env
+# NOTE: asaui will generate .main and use that for docker compose.
+
+SERVER_MAP=TheIsland_WP
+SESSION_NAME="[TEST] A-B-C-D.COM - アイランド"
+
+# Discord Notifications
+DISCORD_WEBHOOK_URL=
+
+# Backup Settings
+AUTO_BACKUP_ENABLED=true
+AUTO_BACKUP_CRON_EXPRESSION="0 3 * * *"
+#OLD_BACKUP_DAYS=7
+
+# Update Settings
+AUTO_UPDATE_ENABLED=true
+AUTO_UPDATE_CRON_EXPRESSION="0 4 * * 0"
+#UPDATE_WARN_MINUTES=30

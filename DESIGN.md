@@ -12,7 +12,7 @@
 - **Persistence:**
   - 表示名メタ情報: JSON (`/cluster/players.json`)
   - サーバー側リスト: テキスト（ホワイトリスト/バイパスリスト）
-  - cluster 設定: `.env.edit`（上書き）と `.env.effective`（自動生成）
+  - cluster 設定: `.cluster.edit`（上書き）と `.cluster`（自動生成）
 - **Icons:** Lucide React
 - **Forms/Validation:** シンプルなフォーム + サーバー側バリデーション
 
@@ -85,9 +85,9 @@ ARK: Ascended のサーバー側リストファイルを直接編集する。
 #### 2.2.3 cluster 設定ファイル
 asaui は `ASAUI_CLUSTER_DIR` 配下のファイルを扱う。
 
-- ベース: `.env`（存在しない場合は `.env.sample` から初回生成）
-- 上書き: `.env.edit`（UI から編集。扱うキーは必要最小限に限定）
-- 有効設定: `.env.effective`（`.env` + `.env.edit` をマージして自動生成）
+- ベース: `default.cluster`
+- 上書き: `.cluster.edit`（UI から編集。扱うキーは必要最小限に限定）
+- 有効設定: `.cluster`（`default.cluster` + `.cluster.edit` をマージして自動生成）
 
 ---
 
@@ -110,8 +110,9 @@ asaui は `ASAUI_CLUSTER_DIR` 配下のファイルを扱う。
   - 対象コンテナ内で `manager rcon <command>` を実行（Docker Exec 相当）。
 
 ### 3.3 cluster 制御
-- **設定編集:** `ASAUI_CLUSTER_DIR/.env.edit` を編集し、`.env.effective` を自動生成.
-- **一括起動/停止:** `docker compose --env-file .env.effective -f compose.yml up -d` / `down` を `ASAUI_CLUSTER_DIR` で実行。
+- **設定編集:** `ASAUI_CLUSTER_DIR/.cluster.edit` を編集し、`.cluster` を自動生成.
+- **一括起動/停止:** `docker compose -f compose.yml up -d` / `down` を `ASAUI_CLUSTER_DIR` で実行。
+  - ※ `.env` が存在する場合、compose が自動的に読み込む（変数展開用）。
 
 ---
 
@@ -141,7 +142,7 @@ asaui は `ASAUI_CLUSTER_DIR` 配下のファイルを扱う。
 - 実行結果出力エリア。
 
 ### 4.5 設定（cluster）
-- `cluster` の `.env` / `.env.edit` を編集し、`.env.effective` を生成。
+- `cluster` の `default.cluster` / `.cluster.edit` を編集し、`.cluster` を生成。
 - MODS の編集補助（CurseForge API が設定されていれば名称表示）。
 
 ---

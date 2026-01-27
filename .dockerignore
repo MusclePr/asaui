@@ -7,8 +7,7 @@ node_modules
 cluster/server
 cluster/backups
 cluster/players.json
-cluster/.env.edit
-cluster/.env.effective
+cluster/.*
 src/app/ShooterGame
 src/app/Engine
 src/app/*.txt

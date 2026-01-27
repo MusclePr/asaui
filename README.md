@@ -8,7 +8,7 @@ ARK: Ascended Docker 用の専用 Web 管理 UI です。
 - **プレイヤー情報:** 各マップのセーブデータを解析し、最終ログイン日時を表示。
 - **ホワイトリスト管理:** EOS ID とニックネームのペアを JSON でシンプルに管理。
 - **RCON コンソール:** コンテナ内コマンド経由で RCON 操作を実行。
-- **サーバー設定:** `cluster` の `.env` / `.env.edit` を編集し、`docker compose up/down` を実行。
+- **サーバー設定:** `cluster` の `default.cluster` / `.cluster.edit` を編集し、`docker compose up/down` を実行。
 
 ## セットアップ
 
@@ -59,9 +59,9 @@ CURSEFORGE_API_KEY=
 
 サーバーの設定（環境変数）は、以下の3つのファイルによって管理されます。
 
-- **[cluster/.env](cluster/.env)**: クラスタ全体のデフォルト設定ファイルです。Dockerイメージやタイムゾーン、ベースとなるサーバー設定（ポート番号など）を記述します。`asaui`が起動時に存在しない場合は、`.env.sample`から自動的にコピーされます。
-- **[cluster/.env.edit](cluster/.env.edit)**: `asaui` の「設定」ページから編集される、ARKサーバー固有の個別設定（プレイヤー数、パスワード、MODなど）を保存するファイルです。
-- **[cluster/.env.effective](cluster/.env.effective)**: 最終的に Docker Compose が読み込むために自動生成されるファイルです。`.env` の内容に `.env.edit` による上書きを適用した結果が書き込まれます。直接編集する必要はありません。
+- **[cluster/default.cluster](cluster/default.cluster)**: クラスタ全体のデフォルト設定ファイルです。Dockerイメージやタイムゾーン、ベースとなるサーバー設定（ポート番号など）を記述します。
+- **[cluster/.cluster.edit](cluster/.cluster.edit)**: `asaui` の「設定」ページから編集される、ARKサーバー固有の個別設定（プレイヤー数、パスワード、MODなど）を保存するファイルです。
+- **[cluster/.cluster](cluster/.cluster)**: 最終的に Docker Compose が読み込むために自動生成されるファイルです。`default.cluster` の内容に `.cluster.edit` による上書きを適用した結果が書き込まれます。直接編集する必要はありません。
 
 補足:
 

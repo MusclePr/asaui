@@ -5,23 +5,18 @@ services:
     restart: on-failure
     tty: true
     env_file:
-      - ./.env.effective
+      - ./.cluster
+      - ./.main
     environment:
-      SERVER_MAP: ${SRV_asa_main_MAP:-TheIsland_WP}
-      SESSION_NAME: "${DOMAIN:-TEST} - The Island"
-      SERVER_PORT: 7790
-      QUERY_PORT: 27030
-      AUTO_BACKUP_ENABLED: "true"
-      AUTO_BACKUP_CRON_EXPRESSION: "0 3 * * *"
-      AUTO_UPDATE_ENABLED: "true"
-      AUTO_UPDATE_CRON_EXPRESSION: "0 4 * * 0"
-      SLAVE_PORTS: "7791"
+      SERVER_PORT: "${ASA_main_SERVER_PORT}"
+      QUERY_PORT: "${ASA_main_QUERY_PORT}"
+      SLAVE_PORTS: "${ASA_sub1_SERVER_PORT}"
     volumes:
       - ./server:/opt/arkserver
       - ./backups:/var/backups
     ports:
-      - "7790:7790/udp"
-      - "27030:27030/udp"
+      - "${ASA_main_SERVER_PORT}:${ASA_main_SERVER_PORT}/udp"
+      - "${ASA_main_QUERY_PORT}:${ASA_main_QUERY_PORT}/udp"
     stop_grace_period: 60s
 
   asa_sub1:
@@ -30,19 +25,16 @@ services:
     restart: on-failure
     tty: true
     env_file:
-      - ./.env.effective
+      - ./.cluster
+      - ./.sub1
     environment:
-      SERVER_MAP: ${SRV_asa_sub1_MAP:-Extinction_WP}
-      SESSION_NAME: "${DOMAIN:-TEST} - Extinction"
-      SERVER_PORT: 7791
-      QUERY_PORT: 27031
-      AUTO_BACKUP_ENABLED: "false"
-      AUTO_UPDATE_ENABLED: "false"
+      SERVER_PORT: "${ASA_sub1_SERVER_PORT}"
+      QUERY_PORT: "${ASA_sub1_QUERY_PORT}"
       LOG_FILE: "ShooterGame_sub1.log"
     volumes:
       - ./server:/opt/arkserver
       - ./backups:/var/backups:ro # restore only
     ports:
-      - "7791:7791/udp"
-      - "27031:27031/udp"
+      - "${ASA_sub1_SERVER_PORT}:${ASA_sub1_SERVER_PORT}/udp"
+      - "${ASA_sub1_QUERY_PORT}:${ASA_sub1_QUERY_PORT}/udp"
     stop_grace_period: 60s
