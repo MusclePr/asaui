@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [containers, setContainers] = useState<ContainerStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [clusterBusy, setClusterBusy] = useState<"up" | "down" | null>(null);
+  const [actionsInProgress, setActionsInProgress] = useState<Record<string, boolean>>({});
   const [clusterLog, setClusterLog] = useState<ClusterLog | null>(null);
   const [selectedLogContainer, setSelectedLogContainer] = useState<ContainerStatus | null>(null);
   const [selectedRconContainer, setSelectedRconContainer] = useState<ContainerStatus | null>(null);
@@ -70,6 +71,7 @@ export default function Dashboard() {
   }, []);
 
   const handleAction = async (id: string, action: string) => {
+    setActionsInProgress(prev => ({ ...prev, [id]: true }));
     try {
       await fetch(`/api/containers/${id}`, {
         method: "POST",
@@ -78,6 +80,8 @@ export default function Dashboard() {
       fetchStatus();
     } catch (err) {
       console.error(err);
+    } finally {
+      setActionsInProgress(prev => ({ ...prev, [id]: false }));
     }
   };
 
@@ -308,11 +312,12 @@ export default function Dashboard() {
                     <p className="text-sm text-muted-foreground truncate">{c.name}</p>
                   </div>
                   <div className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                    c.isStopping ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
                     c.state === 'running' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 
                     c.state === 'exited' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
                     'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
                   }`}>
-                    {c.state.toUpperCase()}
+                    {c.isStopping ? 'STOPPING' : c.state.toUpperCase()}
                     {c.health && (
                       <span className={`uppercase border-l pl-1 ml-1 ${
                         c.health === 'healthy' ? 'border-green-500/30' : 
@@ -340,24 +345,27 @@ export default function Dashboard() {
                   {c.state !== 'running' ? (
                     <button
                       onClick={() => handleAction(c.id, 'start')}
-                      className="p-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 flex justify-center"
-                      title="起動"
+                      className="p-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 flex justify-center disabled:opacity-40"
+                      title={c.state === 'not_created' ? "コンテナが作成されていません（一括起動を使用してください）" : "起動"}
+                      disabled={actionsInProgress[c.id] || c.state === 'not_created'}
                     >
                       <Play className="h-4 w-4" />
                     </button>
                   ) : (
                     <button
                       onClick={() => handleAction(c.id, 'stop')}
-                      className="p-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 flex justify-center"
+                      className="p-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 flex justify-center disabled:opacity-40"
                       title="停止"
+                      disabled={actionsInProgress[c.id] || c.isStopping}
                     >
                       <Square className="h-4 w-4" />
                     </button>
                   )}
                   <button
                     onClick={() => handleAction(c.id, 'restart')}
-                    className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 flex justify-center"
-                    title="再起動"
+                    className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 flex justify-center disabled:opacity-40"
+                    title={c.state === 'not_created' ? "コンテナが作成されていません" : "再起動"}
+                    disabled={actionsInProgress[c.id] || c.isStopping || c.state === 'not_created'}
                   >
                     <RotateCcw className="h-4 w-4" />
                   </button>
@@ -367,15 +375,17 @@ export default function Dashboard() {
                       setRconOutput([]);
                     }}
                     className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 disabled:opacity-40 flex justify-center"
-                    title={c.health === 'healthy' ? "RCON コマンド" : "RCON (サーバーが正常稼働中のみ利用可能)"}
-                    disabled={c.health !== 'healthy'}
+                    title={c.state === 'not_created' ? "コンテナが作成されていません" : (c.health === 'healthy' ? "RCON コマンド" : (c.isStopping ? "停止処理中" : "RCON (サーバーが正常稼働中のみ利用可能)"))}
+                    disabled={c.health !== 'healthy' || c.isStopping || actionsInProgress[c.id] || c.state === 'not_created'}
                   >
                     <Terminal className="h-4 w-4" />
                   </button>
                 </div>
                 <button
                   onClick={() => setSelectedLogContainer(c)}
-                  className="w-full py-2 bg-secondary text-secondary-foreground rounded text-sm font-medium hover:bg-secondary/80 flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-2 bg-secondary text-secondary-foreground rounded text-sm font-medium hover:bg-secondary/80 flex items-center justify-center gap-2 transition-colors disabled:opacity-40"
+                  disabled={c.state === 'not_created'}
+                  title={c.state === 'not_created' ? "コンテナが作成されていません" : "ログを表示"}
                 >
                   <FileText className="h-4 w-4" /> ログを表示
                 </button>

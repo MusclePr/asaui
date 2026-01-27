@@ -9,7 +9,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
   const containers = await docker.listContainers({ all: true });
   const definedServers = getServers();
 
-  return definedServers.map(server => {
+  return Promise.all(definedServers.map(async server => {
     // Find container by container_name (usually includes service name)
     const container = containers.find(c => 
       c.Names.some(name => name === `/${server.containerName}` || name === `/${server.id}`)
@@ -23,6 +23,30 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         health = healthMatch[1];
       }
 
+      let isStopping = false;
+      if (container.State === 'running') {
+        try {
+          // Check for shutdown signal in recent logs
+          const c = docker.getContainer(container.Id);
+          // tail 20 to be safe, no timestamps to keep it clean
+          const logBuffer = await c.logs({
+            stdout: true,
+            stderr: true,
+            tail: 20
+          }) as unknown as Buffer;
+          
+          const logText = logBuffer.toString('utf-8');
+          // Match the exact message from start.sh: LogWarn "Received shutdown signal. Exiting..."
+          // We search for the text part as ANSI codes might be present
+          if (logText.includes("Received shutdown signal. Exiting...")) {
+            isStopping = true;
+          }
+        } catch (e) {
+          // Ignore log fetch errors but log to console
+          console.warn(`Failed to check logs for stopping state on ${server.id}:`, e);
+        }
+      }
+
       return {
         id: container.Id,
         name: server.containerName,
@@ -30,6 +54,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         state: container.State,
         status: container.Status,
         health,
+        isStopping,
         map: getMapDisplayName(server.map),
         mapRaw: server.map,
         sessionName: server.sessionName,
@@ -48,7 +73,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         isManaged: true
       };
     }
-  });
+  }));
 }
 
 export async function manageContainer(id: string, action: string) {

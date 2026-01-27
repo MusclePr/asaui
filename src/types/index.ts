@@ -5,6 +5,7 @@ export interface ContainerStatus {
   state: string; // e.g. "running", "exited", "not_created"
   status: string; // e.g. "Up 2 hours", "Exited (0) 5 minutes ago", "Not created"
   health?: string; // e.g. "healthy", "unhealthy", "starting"
+  isStopping?: boolean; // detected from "Received shutdown signal" logs
   map?: string; // Display name
   mapRaw?: string; // Raw name (e.g. TheIsland_WP)
   sessionName?: string;
