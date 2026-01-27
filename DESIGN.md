@@ -12,7 +12,7 @@
 - **Persistence:**
   - 表示名メタ情報: JSON (`/cluster/players.json`)
   - サーバー側リスト: テキスト（ホワイトリスト/バイパスリスト）
-  - cluster 設定: `.cluster.edit`（上書き）、`.cluster`（自動生成）、`ALL_MODS` による高度なMOD管理
+  - cluster 設定: `.cluster`（上書き）、`default.cluster`（ベース）、`ALL_MODS` による高度なMOD管理
 - **Icons:** Lucide React
 - **Forms/Validation:** サーバー側での厳格な環境変数バリデーション（.env 破壊防止）
 
@@ -70,11 +70,12 @@ asaui は複数の設定ファイルをマージして最終的な `.env`（環�
 
 1. **クラスター設定（共通）**:
    - `default.cluster`: ベース設定（読み取り専用推奨）。
-   - `.cluster.edit`: UI からの上書き設定（`MAX_PLAYERS`, `MODS`, `ALL_MODS` 等）。
-   - `.cluster`: マージ後の有効設定。`docker compose` が参照。
+   - `.cluster`: UI からの上書き設定（`MAX_PLAYERS`, `MODS`, `ALL_MODS` 等）。
 2. **インスタンス設定（個別）**:
    - `default.main`, `default.sub1`: 個別設定（マップ名等）のベース。
-   - `.main`, `.sub1`: インスタンスごとの最終有効設定。
+   - `.main`, `.sub1`: インスタンスごとの上書き設定。
+
+※ `docker-compose` がこれらを直接 `env_file` として複数読み込み、後の記述で上書きします。
 
 ---
 
@@ -92,7 +93,7 @@ asaui は複数の設定ファイルをマージして最終的な `.env`（環�
 ### 3.2 サーバー・クラスター制御
 - **コンテナ操作:** `dockerode` を使用した `start` / `stop` / `restart`。
 - **クラスター一括制御:** `ASAUI_CLUSTER_DIR` で `docker compose up -d` / `down` を実行。
-- **設定反映:** `.cluster.edit` 保存時に `.cluster` を再生成し、コンテナ再起動で適用。
+- **設定反映:** `.cluster` 保存後、コンテナ再起動で適用（`compose.yml` が直接参照）。
 
 ### 3.3 高度な MOD 管理
 - **データ分離:** `ALL_MODS` に全 ID を、`MODS` に有効な ID のみを保持。

@@ -9,7 +9,7 @@ asaui は以下を提供する:
 
 - Docker API（`/var/run/docker.sock`）経由で、`ARK_SERVERS` に一致するコンテナの状態表示・start/stop/restart
 - `ASAUI_CLUSTER_DIR` 配下の compose/env を利用した、`docker compose up/down` による cluster の一括起動/停止
-- cluster の env 上書き（`.cluster.edit`）と `.cluster` 自動生成
+- cluster の env 上書き（`.cluster`）
 - **高度なMOD管理:** `ALL_MODS` 変数を活用した、UI 上での有効/無効および並び替え機能
 
 **対象リポジトリ:**

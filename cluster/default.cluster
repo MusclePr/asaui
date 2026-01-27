@@ -1,5 +1,5 @@
 # cluster default env
-# NOTE: asaui will generate .cluster and use that for docker compose.
+# NOTE: asaui will read this and .cluster directly in compose.yml.
 
 # Time Zone
 TZ=Asia/Tokyo

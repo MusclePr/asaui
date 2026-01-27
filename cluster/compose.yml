@@ -5,6 +5,8 @@ services:
     restart: on-failure
     tty: true
     env_file:
+      - ./default.cluster
+      - ./default.main
       - ./.cluster
       - ./.main
     environment:
@@ -25,6 +27,8 @@ services:
     restart: on-failure
     tty: true
     env_file:
+      - ./default.cluster
+      - ./default.sub1
       - ./.cluster
       - ./.sub1
     environment:

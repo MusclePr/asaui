@@ -6,32 +6,12 @@ import {
   CLUSTER_COMPOSE_FILE,
   CLUSTER_DIR,
   CLUSTER_ENV_DEFAULT_FILE,
-  CLUSTER_ENV_EFFECTIVE_FILE,
   CLUSTER_ENV_OVERRIDE_FILE,
 } from "@/lib/cluster";
 import { parseEnvText, serializeEnv } from "@/lib/envfile";
 import { runDockerCompose } from "@/lib/compose";
 
 type Action = "up" | "down";
-
-function ensureEffectiveEnvExists() {
-  // Minimal generation: base default.cluster (or .env.sample) merged with override .cluster.edit.
-  const basePath = fs.existsSync(CLUSTER_ENV_DEFAULT_FILE)
-    ? CLUSTER_ENV_DEFAULT_FILE
-    : path.join(CLUSTER_DIR, ".env.sample");
-
-  if (!fs.existsSync(basePath)) {
-    throw new Error("Base env file not found for cluster");
-  }
-
-  const base = parseEnvText(fs.readFileSync(basePath, "utf8"));
-  const override = fs.existsSync(CLUSTER_ENV_OVERRIDE_FILE)
-    ? parseEnvText(fs.readFileSync(CLUSTER_ENV_OVERRIDE_FILE, "utf8"))
-    : {};
-
-  const merged = { ...base, ...override };
-  fs.writeFileSync(CLUSTER_ENV_EFFECTIVE_FILE, serializeEnv(merged), "utf8");
-}
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
@@ -49,8 +29,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    ensureEffectiveEnvExists();
 
     const args = [
       "compose",

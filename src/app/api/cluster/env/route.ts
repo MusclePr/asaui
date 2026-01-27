@@ -5,7 +5,6 @@ import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import {
   CLUSTER_DIR,
   CLUSTER_ENV_DEFAULT_FILE,
-  CLUSTER_ENV_EFFECTIVE_FILE,
   CLUSTER_ENV_OVERRIDE_FILE,
 } from "@/lib/cluster";
 import {
@@ -63,16 +62,6 @@ function writeOverrides(overrides: Record<string, string>) {
     }
   }
   fs.writeFileSync(CLUSTER_ENV_OVERRIDE_FILE, lines.join("\n") + (lines.length ? "\n" : ""), "utf8");
-}
-
-function generateEffectiveEnv(overrides: Body) {
-  ensureBaseEnvExists();
-  const baseText = fs.readFileSync(CLUSTER_ENV_DEFAULT_FILE, "utf8");
-  const baseMap = parseEnvText(baseText);
-
-  const merged = mergeEffectiveEnv(baseMap, overrides);
-  fs.writeFileSync(CLUSTER_ENV_EFFECTIVE_FILE, serializeEnv(merged), "utf8");
-  return merged;
 }
 
 export async function GET() {
@@ -165,18 +154,13 @@ export async function PUT(req: NextRequest) {
     // Persist override file (comment-less).
     writeOverrides(overridesToWrite);
 
-    const merged = generateEffectiveEnv({
-      MAX_PLAYERS: maxPlayersV.value ?? undefined,
-      SERVER_PASSWORD: serverPassV.value ?? "",
-      ARK_ADMIN_PASSWORD: adminPassV.value ?? "",
-      MODS: modsV.value ?? "",
-      ARK_EXTRA_OPTS: extraOptsV.value ?? "",
-      ARK_EXTRA_DASH_OPTS: extraDashV.value ?? "",
-    });
+    ensureBaseEnvExists();
+    const base = parseEnvText(fs.readFileSync(CLUSTER_ENV_DEFAULT_FILE, "utf8"));
+    const effective = { ...base, ...overridesToWrite };
 
     await refreshServerCache();
 
-    return NextResponse.json({ success: true, effective: merged });
+    return NextResponse.json({ success: true, effective });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

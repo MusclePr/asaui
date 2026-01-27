@@ -1,5 +1,5 @@
 # main default env
-# NOTE: asaui will generate .main and use that for docker compose.
+# NOTE: asaui will read this and .main directly in compose.yml.
 
 SERVER_MAP=TheIsland_WP
 SESSION_NAME="ASA_Docker main"

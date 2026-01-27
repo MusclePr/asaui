@@ -67,12 +67,13 @@ CURSEFORGE_API_KEY=
 サーバーの設定（環境変数）は、以下のファイル群によって管理されます。
 
 - **[cluster/default.cluster](cluster/default.cluster)**: クラスタ全体のベース設定（タイムゾーン、RCONポート等）。
-- **[cluster/.cluster.edit](cluster/.cluster.edit)**: `asaui` の UI から編集・保存される上書き設定。
-- **[cluster/.cluster](cluster/.cluster)**: 上記2つをマージして自動生成される、Docker Compose が参照する最終的な設定ファイル。
+- **[cluster/.cluster](cluster/.cluster)**: `asaui` の UI から編集・保存される上書き設定。
 - **[cluster/default.main](cluster/default.main)** / **[cluster/default.sub1](cluster/default.sub1)**: マップ名やセッション名など、インスタンス固有の設定を記述するベースファイル。
-- **[cluster/.main](cluster/.main)** / **[cluster/.sub1](cluster/.sub1)**: インスタンス固有の最終設定。
+- **[cluster/.main](cluster/.main)** / **[cluster/.sub1](cluster/.sub1)**: インスタンス固有の上書き設定。
 
 `asaui` の「設定」ページで編集・反映されるのは、全インスタンスで共有される **クラスター共通設定（.cluster）** です。
+
+`docker-compose` はこれらのファイルを重ね合わせて読み込むため、`asaui` 側でのファイルマージ処理は不要になりました。
 
 補足:
 - `ASAUI_CLUSTER_DIR` はコンテナ内のパスです（上の compose 例では `./cluster:/cluster` をマウント）。
