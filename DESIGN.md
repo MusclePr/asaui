@@ -12,23 +12,23 @@
 - **Persistence:**
   - 表示名メタ情報: JSON (`/cluster/players.json`)
   - サーバー側リスト: テキスト（ホワイトリスト/バイパスリスト）
-  - cluster 設定: `.cluster.edit`（上書き）と `.cluster`（自動生成）
+  - cluster 設定: `.cluster.edit`（上書き）、`.cluster`（自動生成）、`ALL_MODS` による高度なMOD管理
 - **Icons:** Lucide React
-- **Forms/Validation:** シンプルなフォーム + サーバー側バリデーション
+- **Forms/Validation:** サーバー側での厳格な環境変数バリデーション（.env 破壊防止）
 
 ### 1.2 コンテナ構成
 - **asaui:**
   - ユーザーインターフェースおよび管理APIを提供。
   - `/var/run/docker.sock` をマウントし、他コンテナを制御。
-  - `/cluster` をマウントし、表示名などのメタ情報を永続化および cluster の設定編集と `docker compose up/down` を行う。
-  - `/cluster/server` が ARK_Ascened_Docker にマウントされるため、セーブデータ解析とサーバー側リスト更新を行う。
+  - `/cluster` をマウントし、メタ情報の保持、cluster 設定（`.cluster`）の編集、および `docker compose up/down` を実行。
+  - `/cluster/server` が各コンテナにマウントされるため、セーブデータ解析とサーバー側リストの直接更新を行う。
 
 ---
 
 ## 2. データ構造・設定
 
 ### 2.1 環境変数 (.env)
-既存の ARK 設定に加え、以下の項目を `asaui` 用に使用・拡張する。
+ARK の既存設定を `asaui` で扱う際、以下の拡張・制約を設ける。
 
 ```bash
 # asaui 認証設定
@@ -36,29 +36,12 @@ ASAUI_PASSWORD=your_secure_password_here
 NEXTAUTH_SECRET=your_random_secret_string
 NEXTAUTH_URL=http://localhost:8080
 
-# 管理対象サーバー (既存)
+# 管理対象サーバー
 ARK_SERVERS="asa_main asa_sub1"
 
-# 各サーバーのマップ名 (ディレクトリ解析用)
-# SERVER_MAP は各サービスの environment でも定義されているが、
-# asaui が .env から直接マップ名を把握するために使用。
-SRV_asa_main_MAP=TheIsland_WP
-SRV_asa_sub1_MAP=Extinction_WP
-
-# セーブデータルート (デフォルト: ShooterGame/Saved/SavedArks)
-ARK_SAVE_BASE_DIR=/cluster/server/ShooterGame/Saved/SavedArks
-
-# RCON 実行対象 (未指定時は ARK_SERVERS の先頭)
-ARK_MAP_MAIN=asa_main
-
-# cluster Settings
-# cluster の compose / env を配置したディレクトリ（asaui コンテナ内パス）
-ASAUI_CLUSTER_DIR=/cluster
-
-# CurseForge (optional)
-# MOD ID から名称/URL を引くために使用（未設定でも動作）
-CURSEFORGE_API_KEY=
-#CURSEFORGE_API_BASE_URL=https://api.curseforge.com
+# MOD管理用の追加変数
+# MODS: 実際にサーバーで読み込まれる MOD ID 一覧（カンマ区切り）
+# ALL_MODS: UI 上で管理されている（無効化分を含む）全 MOD ID 一覧
 ```
 
 ### 2.2 永続化データ
@@ -80,14 +63,18 @@ ARK: Ascended のサーバー側リストファイルを直接編集する。
 - ホワイトリスト: `ShooterGame/Binaries/Win64/PlayersExclusiveJoinList.txt`
 - バイパスリスト: `ShooterGame/Binaries/Win64/PlayersJoinNoCheckList.txt`
 
-いずれも「1行=1つのEOS ID」のテキスト。ホワイトリストはサーバー再起動が必要になる。
+いずれも「1行=1つのEOS ID」のテキスト。ホワイトリストはサーバー再起動が必要。
 
-#### 2.2.3 cluster 設定ファイル
-asaui は `ASAUI_CLUSTER_DIR` 配下のファイルを扱う。
+#### 2.2.3 cluster 設定ファイル (階層マージ構造)
+asaui は複数の設定ファイルをマージして最終的な `.env`（環境変数ファイル）を生成・提供する。
 
-- ベース: `default.cluster`
-- 上書き: `.cluster.edit`（UI から編集。扱うキーは必要最小限に限定）
-- 有効設定: `.cluster`（`default.cluster` + `.cluster.edit` をマージして自動生成）
+1. **クラスター設定（共通）**:
+   - `default.cluster`: ベース設定（読み取り専用推奨）。
+   - `.cluster.edit`: UI からの上書き設定（`MAX_PLAYERS`, `MODS`, `ALL_MODS` 等）。
+   - `.cluster`: マージ後の有効設定。`docker compose` が参照。
+2. **インスタンス設定（個別）**:
+   - `default.main`, `default.sub1`: 個別設定（マップ名等）のベース。
+   - `.main`, `.sub1`: インスタンスごとの最終有効設定。
 
 ---
 
@@ -100,29 +87,28 @@ asaui は `ASAUI_CLUSTER_DIR` 配下のファイルを扱う。
   1. `ARK_SERVERS` で定義された各 ID に対して、対応する `SRV_${ID}_MAP` を取得。
   2. マップフォルダ内の `.arkprofile` ファイルを全走査。
   3. ファイル名から EOS ID を、最終更新日時（mtime）から最終ログインを特定。
-  4. 複数マップに同一 ID が存在する場合、mtime が最新のものを採用（現状は「検出マップ一覧」の保持は行わない）。
-  5. スキャン結果は API 経由でフロントエンドに返却し、手動リロードボタンで再実行可能（現在のUIはマップ名表示は行わず、最終ログイン日時中心）。
+  4. 複数マップに同一 ID が存在する場合、mtime が最新のものを採用。
 
-### 3.2 サーバー制御
-- **コンテナ操作:** `docker.getContainer(id).start()` / `stop()` / `restart()`
-- **ログ取得 (リアルタイム):** 
-  - `dockerode` の `logs({ follow: true, stdout: true, stderr: true })` を使用。
-  - Server-Sent Events (SSE) 経由でフロントエンドへストリーミング。
-- **RCON操作:** 
-  - 対象コンテナ内で `manager rcon <command>` を実行（Docker Exec 相当）。
+### 3.2 サーバー・クラスター制御
+- **コンテナ操作:** `dockerode` を使用した `start` / `stop` / `restart`。
+- **クラスター一括制御:** `ASAUI_CLUSTER_DIR` で `docker compose up -d` / `down` を実行。
+- **設定反映:** `.cluster.edit` 保存時に `.cluster` を再生成し、コンテナ再起動で適用。
 
-### 3.3 cluster 制御
-- **設定編集:** `ASAUI_CLUSTER_DIR/.cluster.edit` を編集し、`.cluster` を自動生成.
-- **一括起動/停止:** `docker compose -f compose.yml up -d` / `down` を `ASAUI_CLUSTER_DIR` で実行。
-  - ※ `.env` が存在する場合、compose が自動的に読み込む（変数展開用）。
+### 3.3 高度な MOD 管理
+- **データ分離:** `ALL_MODS` に全 ID を、`MODS` に有効な ID のみを保持。
+- **UI 操作:** 並び替え（読み込み順）と有効/無効のトグル切り替え。
+- **外部連携:** `CURSEFORGE_API_KEY` が設定されている場合、CurseForge API から MOD の名称と URL を自動取得。
 
-### 3.4 リアルタイムログ表示ロジック
+### 3.4 バリデーション & 安全性
+`.env` ファイルの構文を破壊しないよう、設定保存時に以下のバリデーションを実行する。
+- **禁止文字:** `#`, `'`, `"`, 改行, 空白（パスワードやMOD IDなどのフィールド）。
+- **型チェック:** `MAX_PLAYERS` の数値範囲（1〜100）や、MOD ID の数字形式チェック。
+
+### 3.5 リアルタイムログ表示ロジック
 - **プロトコル:** Server-Sent Events (SSE) を使用。
 - **バックエンド実装:**
   - `dockerode` から取得したログストリームを SSE の `data:` 形式でクライアントへ転送。
-  - クライアントの切断を検知し、適切にストリームをクローズする。
 - **フロントエンド実装:**
-  - `EventSource` API を使用して接続。
   - `ansi-to-html` を使用して、ANSI カラー情報を HTML 要素に変換。
   - 最大保持行数（1000行）を制御しパフォーマンスを維持。
 

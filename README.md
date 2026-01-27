@@ -6,10 +6,11 @@ ARK: Ascended Docker 用の専用 Web 管理 UI です。
 
 - **コンテナ制御:** `asa_main`, `asa_sub1` 等のサイドコンテナを Web から開始・停止・再起動。
 - **リアルタイムログ:** 各コンテナの標準出力を ANSI カラー付きでリアルタイムに表示。
+- **MOD管理:** CurseForge と連携し、MODの有効化/無効化、読み込み順序の並び替え、IDからの名称/URL解決をサポート。
 - **プレイヤー情報:** 各マップのセーブデータを解析し、最終ログイン日時を表示。
 - **ホワイトリスト管理:** EOS ID とニックネームのペアを JSON でシンプルに管理。
 - **RCON コンソール:** コンテナ内コマンド経由で RCON 操作を実行。
-- **サーバー設定:** `cluster` の `default.cluster` / `.cluster.edit` を編集し、`docker compose up/down` を実行。
+- **サーバー設定:** クラスター共通設定（`.cluster`）を UI から安全に編集。
 
 ## セットアップ
 
@@ -48,26 +49,34 @@ ARK_SERVERS="asa_main asa_sub1"
 SRV_asa_main_MAP=TheIsland_WP
 SRV_asa_sub1_MAP=Extinction_WP
 
-# cluster Settings
+# Cluster Settings
 ASAUI_CLUSTER_DIR=/cluster
 
 # CurseForge (optional)
+# MOD ID から情報を取得するために必要です
+# https://console.curseforge.com/ から取得可能
 CURSEFORGE_API_KEY=
 #CURSEFORGE_API_BASE_URL=https://api.curseforge.com
+
+# セキュリティ注意: 
+# パスワードやMOD設定等には # ' " や改行等の記号は使用できません（.env 破壊防止のため）。
 ```
 
 ### cluster の設定ファイル
 
-サーバーの設定（環境変数）は、以下の3つのファイルによって管理されます。
+サーバーの設定（環境変数）は、以下のファイル群によって管理されます。
 
-- **[cluster/default.cluster](cluster/default.cluster)**: クラスタ全体のデフォルト設定ファイルです。Dockerイメージやタイムゾーン、ベースとなるサーバー設定（ポート番号など）を記述します。
-- **[cluster/.cluster.edit](cluster/.cluster.edit)**: `asaui` の「設定」ページから編集される、ARKサーバー固有の個別設定（プレイヤー数、パスワード、MODなど）を保存するファイルです。
-- **[cluster/.cluster](cluster/.cluster)**: 最終的に Docker Compose が読み込むために自動生成されるファイルです。`default.cluster` の内容に `.cluster.edit` による上書きを適用した結果が書き込まれます。直接編集する必要はありません。
+- **[cluster/default.cluster](cluster/default.cluster)**: クラスタ全体のベース設定（タイムゾーン、RCONポート等）。
+- **[cluster/.cluster.edit](cluster/.cluster.edit)**: `asaui` の UI から編集・保存される上書き設定。
+- **[cluster/.cluster](cluster/.cluster)**: 上記2つをマージして自動生成される、Docker Compose が参照する最終的な設定ファイル。
+- **[cluster/default.main](cluster/default.main)** / **[cluster/default.sub1](cluster/default.sub1)**: マップ名やセッション名など、インスタンス固有の設定を記述するベースファイル。
+- **[cluster/.main](cluster/.main)** / **[cluster/.sub1](cluster/.sub1)**: インスタンス固有の最終設定。
+
+`asaui` の「設定」ページで編集・反映されるのは、全インスタンスで共有される **クラスター共通設定（.cluster）** です。
 
 補足:
-
 - `ASAUI_CLUSTER_DIR` はコンテナ内のパスです（上の compose 例では `./cluster:/cluster` をマウント）。
-- `CURSEFORGE_API_KEY` を設定すると、設定ページで MOD ID から名前/URL を解決して表示します（未設定でも動作します）。
+- `ALL_MODS` 環境変数: `asaui` は登録されているすべての MOD ID を `ALL_MODS` で管理し、そのうち有効化されたものだけを `MODS` として構成します。
 
 ### 参照用 external（任意）
 
