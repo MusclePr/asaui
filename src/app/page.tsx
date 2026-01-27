@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
-import { Play, Square, RotateCcw, FileText, X } from "lucide-react";
+import { Play, Square, RotateCcw, FileText, X, Terminal, Send } from "lucide-react";
 import { ContainerStatus } from "@/types";
 import LogStreamViewer from "@/components/LogStreamViewer";
 
@@ -41,6 +41,11 @@ export default function Dashboard() {
   const [clusterBusy, setClusterBusy] = useState<"up" | "down" | null>(null);
   const [clusterLog, setClusterLog] = useState<ClusterLog | null>(null);
   const [selectedLogContainer, setSelectedLogContainer] = useState<ContainerStatus | null>(null);
+  const [selectedRconContainer, setSelectedRconContainer] = useState<ContainerStatus | null>(null);
+  const [rconCommand, setRconCommand] = useState("");
+  const [rconOutput, setRconOutput] = useState<{ type: 'cmd' | 'res' | 'err', text: string }[]>([]);
+  const [rconLoading, setRconLoading] = useState(false);
+  const rconScrollRef = useRef<HTMLDivElement>(null);
 
   const fetchStatus = async () => {
     try {
@@ -125,6 +130,43 @@ export default function Dashboard() {
       setClusterBusy(null);
     }
   };
+
+  const handleRconSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rconCommand.trim() || rconLoading || !selectedRconContainer) return;
+
+    const cmd = rconCommand.trim();
+    setRconCommand("");
+    setRconLoading(true);
+    setRconOutput(prev => [...prev, { type: 'cmd', text: cmd }]);
+
+    try {
+      const res = await fetch("/api/rcon", {
+        method: "POST",
+        body: JSON.stringify({ 
+          command: cmd,
+          containerId: selectedRconContainer.id 
+        }),
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        setRconOutput(prev => [...prev, { type: 'res', text: data.output || "(No output)" }]);
+      } else {
+        setRconOutput(prev => [...prev, { type: 'err', text: data.error || "Failed to execute command" }]);
+      }
+    } catch (err) {
+      setRconOutput(prev => [...prev, { type: 'err', text: "Network error occurred" }]);
+    } finally {
+      setRconLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (rconScrollRef.current) {
+      rconScrollRef.current.scrollTop = rconScrollRef.current.scrollHeight;
+    }
+  }, [rconOutput]);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -257,19 +299,30 @@ export default function Dashboard() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {containers.map((c) => (
-              <div key={c.id} className="p-6 bg-card border rounded-lg space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-lg">{c.sessionName || c.name}</h3>
-                    <p className="text-sm text-muted-foreground">{c.name} ({c.image})</p>
+              <div key={c.id} className="p-6 bg-card border rounded-lg space-y-4 flex flex-col">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-lg truncate" title={c.sessionName || c.name}>
+                      {c.sessionName || c.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground truncate">{c.name}</p>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                    c.state === 'running' ? 'bg-green-500/10 text-green-500' : 
-                    c.state === 'exited' ? 'bg-red-500/10 text-red-500' : 
-                    'bg-yellow-500/10 text-yellow-500'
+                  <div className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                    c.state === 'running' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 
+                    c.state === 'exited' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
+                    'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
                   }`}>
                     {c.state.toUpperCase()}
-                  </span>
+                    {c.health && (
+                      <span className={`uppercase border-l pl-1 ml-1 ${
+                        c.health === 'healthy' ? 'border-green-500/30' : 
+                        c.health === 'unhealthy' ? 'text-destructive border-destructive/30' : 
+                        'text-yellow-500 border-yellow-500/30'
+                      }`}>
+                        {c.health}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -283,11 +336,11 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-2">
+                <div className="grid grid-cols-3 gap-2 pt-2">
                   {c.state !== 'running' ? (
                     <button
                       onClick={() => handleAction(c.id, 'start')}
-                      className="p-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                      className="p-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 flex justify-center"
                       title="起動"
                     >
                       <Play className="h-4 w-4" />
@@ -295,7 +348,7 @@ export default function Dashboard() {
                   ) : (
                     <button
                       onClick={() => handleAction(c.id, 'stop')}
-                      className="p-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90"
+                      className="p-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 flex justify-center"
                       title="停止"
                     >
                       <Square className="h-4 w-4" />
@@ -303,18 +356,29 @@ export default function Dashboard() {
                   )}
                   <button
                     onClick={() => handleAction(c.id, 'restart')}
-                    className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80"
+                    className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 flex justify-center"
                     title="再起動"
                   >
                     <RotateCcw className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => setSelectedLogContainer(c)}
-                    className="flex-1 flex items-center justify-center gap-1 py-2 bg-secondary text-secondary-foreground rounded text-sm font-medium hover:bg-secondary/80"
+                    onClick={() => {
+                      setSelectedRconContainer(c);
+                      setRconOutput([]);
+                    }}
+                    className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 disabled:opacity-40 flex justify-center"
+                    title={c.health === 'healthy' ? "RCON コマンド" : "RCON (サーバーが正常稼働中のみ利用可能)"}
+                    disabled={c.health !== 'healthy'}
                   >
-                    <FileText className="h-4 w-4" /> ログ表示
+                    <Terminal className="h-4 w-4" />
                   </button>
                 </div>
+                <button
+                  onClick={() => setSelectedLogContainer(c)}
+                  className="w-full py-2 bg-secondary text-secondary-foreground rounded text-sm font-medium hover:bg-secondary/80 flex items-center justify-center gap-2 transition-colors"
+                >
+                  <FileText className="h-4 w-4" /> ログを表示
+                </button>
               </div>
             ))}
           </div>
@@ -342,6 +406,76 @@ export default function Dashboard() {
                 containerName={selectedLogContainer.name} 
                 maxLines={1000}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RCON Modal */}
+      {selectedRconContainer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-4xl bg-background rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-2">
+                <Terminal className="h-5 w-5" />
+                <h2 className="text-xl font-bold">
+                  {selectedRconContainer.sessionName || selectedRconContainer.name} RCON
+                </h2>
+              </div>
+              <button 
+                onClick={() => setSelectedRconContainer(null)}
+                className="p-2 hover:bg-secondary rounded-full transition-colors"
+                disabled={rconLoading}
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 flex flex-col min-h-0 bg-black font-mono text-sm overflow-hidden">
+              <div 
+                ref={rconScrollRef}
+                className="flex-1 overflow-y-auto p-4 space-y-2"
+              >
+                {rconOutput.map((line, i) => (
+                  <div key={i} className={`flex gap-2 ${
+                    line.type === 'cmd' ? 'text-primary' : 
+                    line.type === 'err' ? 'text-destructive' : 
+                    'text-green-400'
+                  }`}>
+                    <span className="shrink-0">
+                      {line.type === 'cmd' ? '>' : line.type === 'err' ? '!' : '#'}
+                    </span>
+                    <span className="whitespace-pre-wrap">{line.text}</span>
+                  </div>
+                ))}
+                {rconOutput.length === 0 && (
+                  <div className="text-muted-foreground italic">
+                    コマンドを入力して実行してください (例: ListPlayers, ServerChat Hello)
+                  </div>
+                )}
+                {rconLoading && (
+                  <div className="text-yellow-500 animate-pulse">Running...</div>
+                )}
+              </div>
+
+              <form onSubmit={handleRconSubmit} className="p-4 border-t border-white/10 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="コマンドを入力..."
+                  className="flex-1 px-4 py-2 bg-white/5 border border-white/20 rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-white"
+                  value={rconCommand}
+                  onChange={(e) => setRconCommand(e.target.value)}
+                  disabled={rconLoading}
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  disabled={rconLoading || !rconCommand.trim()}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Send className="h-4 w-4" /> 実行
+                </button>
+              </form>
             </div>
           </div>
         </div>

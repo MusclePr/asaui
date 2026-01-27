@@ -16,12 +16,20 @@ export async function getContainers(): Promise<ContainerStatus[]> {
     );
 
     if (container) {
+      // Extract health from status string: "Up X hours (healthy)"
+      let health: string | undefined = undefined;
+      const healthMatch = container.Status.match(/\((healthy|unhealthy|starting)\)/);
+      if (healthMatch) {
+        health = healthMatch[1];
+      }
+
       return {
         id: container.Id,
         name: server.containerName,
         image: container.Image,
         state: container.State,
         status: container.Status,
+        health,
         map: getMapDisplayName(server.map),
         mapRaw: server.map,
         sessionName: server.sessionName,
@@ -53,20 +61,46 @@ export async function manageContainer(id: string, action: string) {
 }
 
 export async function execRcon(containerIdOrName: string, command: string): Promise<string> {
-  // Use docker exec to run rcon command inside the container
-  // Assuming the container has 'manager' or or similar RCON tool
   const container = docker.getContainer(containerIdOrName);
   const exec = await container.exec({
     Cmd: ['manager', 'rcon', command],
     AttachStdout: true,
-    AttachStderr: true
+    AttachStderr: true,
+    Tty: false // Multiplexed stream preserves output integrity
   });
 
   const stream = await exec.start({});
   return new Promise((resolve, reject) => {
     let output = "";
-    stream.on('data', (chunk) => output += chunk.toString());
-    stream.on('end', () => resolve(output));
+    
+    // Using a simple state machine to demux without external dependencies
+    // Docker multiplexed header is 8 bytes: [type, 0, 0, 0, size1, size2, size3, size4]
+    let buffer = Buffer.alloc(0);
+
+    stream.on('data', (chunk: Buffer) => {
+      buffer = Buffer.concat([buffer, chunk]);
+      
+      while (buffer.length >= 8) {
+        const type = buffer[0];
+        const size = buffer.readUInt32BE(4);
+        
+        if (buffer.length >= 8 + size) {
+          const content = buffer.subarray(8, 8 + size).toString('utf-8');
+          output += content;
+          buffer = buffer.subarray(8 + size);
+        } else {
+          break; // Wait for more data
+        }
+      }
+    });
+
+    stream.on('end', () => {
+      // If there's anything left in output or buffer (in case Tty was actually true)
+      if (output === "" && buffer.length > 0) {
+        output = buffer.toString('utf-8');
+      }
+      resolve(output.trim());
+    });
     stream.on('error', reject);
   });
 }

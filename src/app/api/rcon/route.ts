@@ -8,10 +8,10 @@ export async function POST(req: NextRequest) {
   if (!session) return unauthorizedResponse();
 
   try {
-    const { command } = await req.json();
+    const { command, containerId } = await req.json();
     if (!command) return NextResponse.json({ error: "Command required" }, { status: 400 });
 
-    const targetId = getMainServerId();
+    const targetId = containerId || getMainServerId();
     if (!targetId) return NextResponse.json({ error: "No managed servers found" }, { status: 404 });
 
     const output = await execRcon(targetId, command);
