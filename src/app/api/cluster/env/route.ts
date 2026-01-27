@@ -12,6 +12,7 @@ import {
   mergeEffectiveEnv,
   parseEnvText,
   serializeEnv,
+  validateAllModsCsv,
   validateExtra,
   validateMaxPlayers,
   validateModsCsv,
@@ -24,6 +25,7 @@ const OVERRIDE_KEYS = [
   "SERVER_PASSWORD",
   "ARK_ADMIN_PASSWORD",
   "MODS",
+  "ALL_MODS",
   "ARK_EXTRA_OPTS",
   "ARK_EXTRA_DASH_OPTS",
 ] as const;
@@ -33,6 +35,7 @@ type Body = {
   SERVER_PASSWORD?: string;
   ARK_ADMIN_PASSWORD?: string;
   MODS?: string;
+  ALL_MODS?: string;
   ARK_EXTRA_OPTS?: string;
   ARK_EXTRA_DASH_OPTS?: string;
 };
@@ -87,6 +90,7 @@ export async function GET() {
     defaults.SERVER_PASSWORD = base.SERVER_PASSWORD ?? "";
     defaults.ARK_ADMIN_PASSWORD = base.ARK_ADMIN_PASSWORD ?? "";
     defaults.MODS = base.MODS ?? "";
+    defaults.ALL_MODS = base.ALL_MODS ?? "";
     defaults.ARK_EXTRA_OPTS = base.ARK_EXTRA_OPTS ?? "";
     defaults.ARK_EXTRA_DASH_OPTS = base.ARK_EXTRA_DASH_OPTS ?? "";
 
@@ -102,6 +106,7 @@ export async function GET() {
     body.ARK_ADMIN_PASSWORD =
       currentOverrides.ARK_ADMIN_PASSWORD ?? base.ARK_ADMIN_PASSWORD ?? "";
     body.MODS = currentOverrides.MODS ?? base.MODS ?? "";
+    body.ALL_MODS = currentOverrides.ALL_MODS ?? base.ALL_MODS ?? "";
     body.ARK_EXTRA_OPTS =
       currentOverrides.ARK_EXTRA_OPTS ?? base.ARK_EXTRA_OPTS ?? "";
     body.ARK_EXTRA_DASH_OPTS =
@@ -138,6 +143,9 @@ export async function PUT(req: NextRequest) {
     const modsV = validateModsCsv(raw.MODS ?? "");
     if (!modsV.ok) return NextResponse.json({ error: modsV.error }, { status: 400 });
 
+    const allModsV = validateAllModsCsv(raw.ALL_MODS ?? "");
+    if (!allModsV.ok) return NextResponse.json({ error: allModsV.error }, { status: 400 });
+
     const extraOptsV = validateExtra(raw.ARK_EXTRA_OPTS ?? "", "ARK_EXTRA_OPTS");
     if (!extraOptsV.ok) return NextResponse.json({ error: extraOptsV.error }, { status: 400 });
 
@@ -149,6 +157,7 @@ export async function PUT(req: NextRequest) {
       SERVER_PASSWORD: serverPassV.value ?? "",
       ARK_ADMIN_PASSWORD: adminPassV.value ?? "",
       MODS: modsV.value ?? "",
+      ALL_MODS: allModsV.value ?? "",
       ARK_EXTRA_OPTS: extraOptsV.value ?? "",
       ARK_EXTRA_DASH_OPTS: extraDashV.value ?? "",
     };

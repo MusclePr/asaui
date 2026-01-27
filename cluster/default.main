@@ -2,7 +2,7 @@
 # NOTE: asaui will generate .main and use that for docker compose.
 
 SERVER_MAP=TheIsland_WP
-SESSION_NAME="[TEST] A-B-C-D.COM - アイランド"
+SESSION_NAME="ASA_Docker main"
 
 # Backup Settings
 AUTO_BACKUP_ENABLED=true

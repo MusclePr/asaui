@@ -48,6 +48,7 @@ export const EDITABLE_KEYS = [
   "SERVER_PASSWORD",
   "ARK_ADMIN_PASSWORD",
   "MODS",
+  "ALL_MODS",
   "ARK_EXTRA_OPTS",
   "ARK_EXTRA_DASH_OPTS",
 ] as const;
@@ -59,6 +60,7 @@ export type ClusterEditableSettings = {
   SERVER_PASSWORD?: string;
   ARK_ADMIN_PASSWORD?: string;
   MODS?: string;
+  ALL_MODS?: string;
   ARK_EXTRA_OPTS?: string;
   ARK_EXTRA_DASH_OPTS?: string;
 };
@@ -92,6 +94,16 @@ export function validateModsCsv(value: unknown): { ok: boolean; value?: string; 
   if (!value) return { ok: true, value: "" };
   if (!/^\d+(,\d+)*$/.test(value)) {
     return { ok: false, error: "MODS は数字IDをカンマ区切りで指定してください" };
+  }
+  return { ok: true, value };
+}
+
+export function validateAllModsCsv(value: unknown): { ok: boolean; value?: string; error?: string } {
+  if (value === undefined || value === null) return { ok: true, value: undefined };
+  if (typeof value !== "string") return { ok: false, error: "ALL_MODS は文字列で指定してください" };
+  if (!value) return { ok: true, value: "" };
+  if (!/^\d+(,\d+)*$/.test(value)) {
+    return { ok: false, error: "ALL_MODS は数字IDをカンマ区切りで指定してください" };
   }
   return { ok: true, value };
 }

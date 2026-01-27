@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import AppLayout from "@/components/AppLayout";
-import { Save, Plus, Trash2, RefreshCcw } from "lucide-react";
+import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff } from "lucide-react";
 import { PasswordInput } from "@/components/PasswordInput";
 
 type Settings = {
@@ -11,6 +11,7 @@ type Settings = {
   SERVER_PASSWORD: string;
   ARK_ADMIN_PASSWORD: string;
   MODS: string;
+  ALL_MODS: string;
   ARK_EXTRA_OPTS: string;
   ARK_EXTRA_DASH_OPTS: string;
 };
@@ -49,6 +50,7 @@ export default function ClusterSettingsPage() {
     SERVER_PASSWORD: "",
     ARK_ADMIN_PASSWORD: "",
     MODS: "",
+    ALL_MODS: "",
     ARK_EXTRA_OPTS: "",
     ARK_EXTRA_DASH_OPTS: "",
   });
@@ -58,15 +60,22 @@ export default function ClusterSettingsPage() {
     SERVER_PASSWORD: "",
     ARK_ADMIN_PASSWORD: "",
     MODS: "",
+    ALL_MODS: "",
     ARK_EXTRA_OPTS: "",
     ARK_EXTRA_DASH_OPTS: "",
   });
 
-  const [mods, setMods] = useState<string[]>([]);
+  const [allModIds, setAllModIds] = useState<string[]>([]);
+  const [enabledModIds, setEnabledModIds] = useState<string[]>([]);
   const [modInfo, setModInfo] = useState<Record<string, ModInfo>>({});
   const [newModId, setNewModId] = useState("");
 
-  const modsCsv = useMemo(() => joinModsCsv(mods), [mods]);
+  const modsCsv = useMemo(() => {
+    // MODS should follow the order in ALL_MODS but only include enabled ones
+    return allModIds.filter((id) => enabledModIds.includes(id)).join(",");
+  }, [allModIds, enabledModIds]);
+
+  const allModsCsv = useMemo(() => joinModsCsv(allModIds), [allModIds]);
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -84,6 +93,7 @@ export default function ClusterSettingsPage() {
         SERVER_PASSWORD: d.SERVER_PASSWORD ?? "",
         ARK_ADMIN_PASSWORD: d.ARK_ADMIN_PASSWORD ?? "",
         MODS: d.MODS ?? "",
+        ALL_MODS: d.ALL_MODS ?? "",
         ARK_EXTRA_OPTS: d.ARK_EXTRA_OPTS ?? "",
         ARK_EXTRA_DASH_OPTS: d.ARK_EXTRA_DASH_OPTS ?? "",
       };
@@ -92,14 +102,21 @@ export default function ClusterSettingsPage() {
         SERVER_PASSWORD: s.SERVER_PASSWORD ?? "",
         ARK_ADMIN_PASSWORD: s.ARK_ADMIN_PASSWORD ?? "",
         MODS: s.MODS ?? "",
+        ALL_MODS: s.ALL_MODS ?? "",
         ARK_EXTRA_OPTS: s.ARK_EXTRA_OPTS ?? "",
         ARK_EXTRA_DASH_OPTS: s.ARK_EXTRA_DASH_OPTS ?? "",
       };
 
       setDefaults(resolvedDefaults);
       setSettings(merged);
-      const ids = parseModsCsv(merged.MODS);
-      setMods(ids);
+
+      const loadedAll = parseModsCsv(merged.ALL_MODS);
+      const loadedEnabled = parseModsCsv(merged.MODS);
+
+      // Gracefully handle legacy or manual edits
+      const mergedAll = Array.from(new Set([...loadedAll, ...loadedEnabled]));
+      setAllModIds(mergedAll);
+      setEnabledModIds(loadedEnabled);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -136,14 +153,14 @@ export default function ClusterSettingsPage() {
 
   useEffect(() => {
     (async () => {
-      for (const id of mods) {
+      for (const id of allModIds) {
         // sequential to avoid API burst
         // eslint-disable-next-line no-await-in-loop
         await fetchModInfo(id);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modsCsv]);
+  }, [allModsCsv]);
 
   const validatePassword = (value: string, label: string): string | null => {
     if (value.length > 32) return `${label} は 32 文字以内で指定してください`;
@@ -153,9 +170,9 @@ export default function ClusterSettingsPage() {
     return null;
   };
 
-  const validateMods = (value: string): string | null => {
+  const validateMods = (value: string, label: string): string | null => {
     if (!value) return null;
-    if (!/^\d+(,\d+)*$/.test(value)) return "MODS は数字IDをカンマ区切りで指定してください";
+    if (!/^\d+(,\d+)*$/.test(value)) return `${label} は数字IDをカンマ区切りで指定してください`;
     return null;
   };
 
@@ -172,15 +189,17 @@ export default function ClusterSettingsPage() {
     if (p1) return p1;
     const p2 = validatePassword(settings.ARK_ADMIN_PASSWORD, "ARK_ADMIN_PASSWORD");
     if (p2) return p2;
-    const m = validateMods(modsCsv);
-    if (m) return m;
+    const m1 = validateMods(modsCsv, "MODS");
+    if (m1) return m1;
+    const m2 = validateMods(allModsCsv, "ALL_MODS");
+    if (m2) return m2;
     const e1 = validateExtra(settings.ARK_EXTRA_OPTS, "ARK_EXTRA_OPTS");
     if (e1) return e1;
     const e2 = validateExtra(settings.ARK_EXTRA_DASH_OPTS, "ARK_EXTRA_DASH_OPTS");
     if (e2) return e2;
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings, modsCsv]);
+  }, [settings, modsCsv, allModsCsv]);
 
   const save = async () => {
     setError(null);
@@ -196,6 +215,7 @@ export default function ClusterSettingsPage() {
       const body: Settings = {
         ...settings,
         MODS: modsCsv,
+        ALL_MODS: allModsCsv,
       };
       const res = await fetch("/api/cluster/env", {
         method: "PUT",
@@ -219,17 +239,39 @@ export default function ClusterSettingsPage() {
       setError("MOD ID は数字で入力してください");
       return;
     }
-    if (mods.includes(id)) {
+    if (allModIds.includes(id)) {
       setNewModId("");
       return;
     }
-    setMods((prev) => [...prev, id]);
+    setAllModIds((prev) => [...prev, id]);
+    setEnabledModIds((prev) => [...prev, id]);
     setNewModId("");
     await fetchModInfo(id);
   };
 
   const removeMod = (id: string) => {
-    setMods((prev) => prev.filter((x) => x !== id));
+    setAllModIds((prev) => prev.filter((x) => x !== id));
+    setEnabledModIds((prev) => prev.filter((x) => x !== id));
+  };
+
+  const toggleMod = (id: string) => {
+    if (enabledModIds.includes(id)) {
+      setEnabledModIds((prev) => prev.filter((x) => x !== id));
+    } else {
+      setEnabledModIds((prev) => [...prev, id]);
+    }
+  };
+
+  const moveMod = (id: string, direction: "up" | "down") => {
+    const list = [...allModIds];
+    const idx = list.indexOf(id);
+    if (idx === -1) return;
+    if (direction === "up" && idx > 0) {
+      [list[idx], list[idx - 1]] = [list[idx - 1], list[idx]];
+    } else if (direction === "down" && idx < list.length - 1) {
+      [list[idx], list[idx + 1]] = [list[idx + 1], list[idx]];
+    }
+    setAllModIds(list);
   };
 
   const resetMaxPlayers = () => {
@@ -247,8 +289,10 @@ export default function ClusterSettingsPage() {
   };
 
   const resetMods = () => {
-    const ids = parseModsCsv(defaults.MODS);
-    setMods(ids);
+    const dAll = parseModsCsv(defaults.ALL_MODS);
+    const dEnabled = parseModsCsv(defaults.MODS);
+    setAllModIds(Array.from(new Set([...dAll, ...dEnabled])));
+    setEnabledModIds(dEnabled);
   };
 
   const resetExtra = (key: "ARK_EXTRA_OPTS" | "ARK_EXTRA_DASH_OPTS") => {
@@ -400,63 +444,94 @@ export default function ClusterSettingsPage() {
                   デフォルトに戻す
                 </button>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left border-b">
+                      <th className="py-2 pr-4 w-10 text-center">状態</th>
                       <th className="py-2 pr-4">ID</th>
                       <th className="py-2 pr-4">名前</th>
-                      <th className="py-2">操作</th>
+                      <th className="py-2">順序 / 操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {mods.length === 0 ? (
+                    {allModIds.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="py-3 text-muted-foreground">
+                        <td colSpan={4} className="py-3 text-muted-foreground">
                           未設定
                         </td>
                       </tr>
                     ) : (
-                      mods.map((id) => (
-                        <tr key={id} className="border-b">
-                          <td className="py-2 pr-4 font-mono">{id}</td>
-                          <td className="py-2 pr-4">
-                            {modInfo[id]?.url ? (
-                              <a
-                                className="text-primary hover:underline"
-                                href={modInfo[id]?.url}
-                                target="_blank"
-                                rel="noreferrer"
+                      allModIds.map((id, idx) => {
+                        const isEnabled = enabledModIds.includes(id);
+                        return (
+                          <tr key={id} className={`border-b ${!isEnabled ? "opacity-60 grayscale" : "bg-primary/5"}`}>
+                            <td className="py-2 pr-4 text-center">
+                              <button
+                                onClick={() => toggleMod(id)}
+                                className={isEnabled ? "text-primary hover:text-primary/70" : "text-muted-foreground hover:text-primary"}
+                                title={isEnabled ? "無効化" : "有効化"}
                               >
-                                {modInfo[id]?.name || modInfo[id]?.url}
-                              </a>
-                            ) : (
-                              modInfo[id]?.name || ""
-                            )}
-                          </td>
-                          <td className="py-2">
-                            <button
-                              onClick={() => removeMod(id)}
-                              className="px-3 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 inline-flex items-center gap-2"
-                            >
-                              <Trash2 className="h-4 w-4" /> 削除
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                                {isEnabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
+                              </button>
+                            </td>
+                            <td className="py-2 pr-4 font-mono">{id}</td>
+                            <td className={`py-2 pr-4 ${!isEnabled ? "line-through" : ""}`}>
+                              {modInfo[id]?.url ? (
+                                <a
+                                  className="text-primary hover:underline"
+                                  href={modInfo[id]?.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {modInfo[id]?.name || modInfo[id]?.url}
+                                </a>
+                              ) : (
+                                modInfo[id]?.name || id
+                              )}
+                            </td>
+                            <td className="py-2 flex items-center gap-1">
+                              <button
+                                onClick={() => moveMod(id, "up")}
+                                disabled={idx === 0}
+                                className="p-1 rounded hover:bg-secondary disabled:opacity-30"
+                              >
+                                <ArrowUp className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => moveMod(id, "down")}
+                                disabled={idx === allModIds.length - 1}
+                                className="p-1 rounded hover:bg-secondary disabled:opacity-30"
+                              >
+                                <ArrowDown className="h-4 w-4" />
+                              </button>
+                              <div className="w-2" />
+                              <button
+                                onClick={() => removeMod(id)}
+                                className="px-3 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 inline-flex items-center gap-2"
+                              >
+                                <Trash2 className="h-4 w-4" /> 削除
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
 
                     <tr>
+                      <td className="py-2 pr-4" />
                       <td className="py-2 pr-4">
                         <input
                           value={newModId}
                           onChange={(e) => setNewModId(e.target.value)}
                           placeholder="MOD ID"
                           className="w-32 px-2 py-1 border rounded bg-background font-mono"
+                          onKeyDown={(e) => e.key === "Enter" && addMod()}
                         />
                       </td>
                       <td className="py-2 pr-4 text-muted-foreground">
-                        追加すると CurseForge から名前/URL を補完します（失敗時は空欄）
+                        追加すると CurseForge から名前/URL を補完します
                       </td>
                       <td className="py-2">
                         <button
@@ -470,8 +545,13 @@ export default function ClusterSettingsPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="text-xs text-muted-foreground">
-                保存時の内部データ: <span className="font-mono">{modsCsv || "(empty)"}</span>
+              <div className="text-xs text-muted-foreground flex flex-col gap-1">
+                <div>
+                  保存時の内部データ (MODS): <span className="font-mono">{modsCsv || "(empty)"}</span>
+                </div>
+                <div>
+                  保存時の内部データ (ALL_MODS): <span className="font-mono">{allModsCsv || "(empty)"}</span>
+                </div>
               </div>
               <div className="text-xs text-muted-foreground">
                 デフォルト: <span className="font-mono">{defaults.MODS || "(empty)"}</span>

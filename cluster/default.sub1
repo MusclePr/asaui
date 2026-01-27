@@ -2,7 +2,7 @@
 # NOTE: asaui will generate .sub1 and use that for docker compose.
 
 SERVER_MAP=Extinction_WP
-SESSION_NAME="[TEST] A-B-C-D.COM - エクスティンクション"
+SESSION_NAME="ASA_Docker sub1"
 
 # Avoid conflict with other servers' log files
 #LOG_FILE="ShooterGame_sub1.log"
