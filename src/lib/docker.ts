@@ -1,25 +1,46 @@
 import Docker from 'dockerode';
 import { ContainerStatus } from '@/types';
-import { SERVERS } from './config';
+import { getServers } from './config';
+import { getMapDisplayName } from './maps';
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 export async function getContainers(): Promise<ContainerStatus[]> {
   const containers = await docker.listContainers({ all: true });
-  return containers
-    .filter(c => c.Names.some(name => SERVERS.some(s => name.includes(s.id))))
-    .map(c => {
-      const name = c.Names[0].replace(/^\//, "");
-      const serverConfig = SERVERS.find(s => name.includes(s.id));
+  const definedServers = getServers();
+
+  return definedServers.map(server => {
+    // Find container by container_name (usually includes service name)
+    const container = containers.find(c => 
+      c.Names.some(name => name === `/${server.containerName}` || name === `/${server.id}`)
+    );
+
+    if (container) {
       return {
-        id: c.Id,
-        name: name,
-        image: c.Image,
-        state: c.State,
-        status: c.Status,
-        map: serverConfig?.map || ""
+        id: container.Id,
+        name: server.containerName,
+        image: container.Image,
+        state: container.State,
+        status: container.Status,
+        map: getMapDisplayName(server.map),
+        mapRaw: server.map,
+        sessionName: server.sessionName,
+        isManaged: true
       };
-    });
+    } else {
+      return {
+        id: server.id, // Use service ID as fallback
+        name: server.containerName,
+        image: "(not created)",
+        state: "not_created",
+        status: "Not created",
+        map: getMapDisplayName(server.map),
+        mapRaw: server.map,
+        sessionName: server.sessionName,
+        isManaged: true
+      };
+    }
+  });
 }
 
 export async function manageContainer(id: string, action: string) {
@@ -47,5 +68,19 @@ export async function execRcon(containerIdOrName: string, command: string): Prom
     stream.on('data', (chunk) => output += chunk.toString());
     stream.on('end', () => resolve(output));
     stream.on('error', reject);
+  });
+}
+
+export async function getContainerLogsStream(id: string) {
+  const container = docker.getContainer(id);
+  const containerInfo = await container.inspect();
+  const isTty = containerInfo.Config.Tty;
+
+  return await container.logs({
+    stdout: true,
+    stderr: true,
+    follow: true,
+    tail: 1000,
+    timestamps: true
   });
 }

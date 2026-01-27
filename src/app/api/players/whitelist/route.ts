@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addToWhitelist, removeFromWhitelist } from "@/lib/storage";
 import { execRcon } from "@/lib/docker";
-import { SERVERS } from "@/lib/config";
+import { getServers } from "@/lib/config";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 
 export async function POST(req: NextRequest) {
@@ -14,7 +14,8 @@ export async function POST(req: NextRequest) {
 
     addToWhitelist(eosId);
     // ホワイトリストに追加・削除するコマンドは存在しないため、ここではRCONコマンドを実行しない
-    // const targets = SERVERS.map(server => server.id).filter(Boolean);
+    // const servers = getServers();
+    // const targets = servers.map(server => server.id).filter(Boolean);
     // await Promise.all(targets.map(id => execRcon(id, `AllowPlayerToJoin ${eosId}`)));
 
     return NextResponse.json({ success: true });

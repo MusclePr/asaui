@@ -17,6 +17,7 @@ import {
   validateModsCsv,
   validatePassword,
 } from "@/lib/envfile";
+import { refreshServerCache } from "@/lib/compose";
 
 const OVERRIDE_KEYS = [
   "MAX_PLAYERS",
@@ -163,6 +164,8 @@ export async function PUT(req: NextRequest) {
       ARK_EXTRA_OPTS: extraOptsV.value ?? "",
       ARK_EXTRA_DASH_OPTS: extraDashV.value ?? "",
     });
+
+    await refreshServerCache();
 
     return NextResponse.json({ success: true, effective: merged });
   } catch (error: any) {

@@ -1,14 +1,23 @@
-export const ARK_SERVERS = (process.env.ARK_SERVERS || "")
-  .replace(/[()]/g, "")
-  .split(/[\s,]+/)
-  .filter(s => s.length > 0);
+import { getCachedServers } from "./compose";
 
-export const SERVERS = ARK_SERVERS.map(id => ({
-  id,
-  map: process.env[`SRV_${id}_MAP`] || "TheIsland_WP"
-}));
+export function getServers() {
+  const cached = getCachedServers();
+  return cached.map(s => ({
+    id: s.id,
+    containerName: s.containerName,
+    sessionName: s.sessionName,
+    map: s.mapRaw
+  }));
+}
 
-export const ARK_MAP_MAIN = process.env.ARK_MAP_MAIN || ARK_SERVERS[0] || "";
+export const ARK_MAP_MAIN = process.env.ARK_MAP_MAIN || ""; // Will be determined dynamically if empty
+
+export function getMainServerId(): string {
+  if (ARK_MAP_MAIN) return ARK_MAP_MAIN;
+  const servers = getServers();
+  return servers.length > 0 ? servers[0].id : "";
+}
+
 export const ARK_SAVE_BASE_DIR = process.env.ARK_SAVE_BASE_DIR || "/cluster/server/ShooterGame/Saved/SavedArks";
 
 export const EXPOSE_URL = process.env.EXPOSE_URL || "";

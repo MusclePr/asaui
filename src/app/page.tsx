@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
-import { Play, Square, RotateCcw, FileText } from "lucide-react";
+import { Play, Square, RotateCcw, FileText, X } from "lucide-react";
 import { ContainerStatus } from "@/types";
+import LogStreamViewer from "@/components/LogStreamViewer";
 
 type ClusterComposeResponse = {
   success?: boolean;
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [clusterBusy, setClusterBusy] = useState<"up" | "down" | null>(null);
   const [clusterLog, setClusterLog] = useState<ClusterLog | null>(null);
+  const [selectedLogContainer, setSelectedLogContainer] = useState<ContainerStatus | null>(null);
 
   const fetchStatus = async () => {
     try {
@@ -258,8 +260,8 @@ export default function Dashboard() {
               <div key={c.id} className="p-6 bg-card border rounded-lg space-y-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-bold text-lg">{c.name}</h3>
-                    <p className="text-sm text-muted-foreground">{c.image}</p>
+                    <h3 className="font-bold text-lg">{c.sessionName || c.name}</h3>
+                    <p className="text-sm text-muted-foreground">{c.name} ({c.image})</p>
                   </div>
                   <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                     c.state === 'running' ? 'bg-green-500/10 text-green-500' : 
@@ -285,30 +287,32 @@ export default function Dashboard() {
                   {c.state !== 'running' ? (
                     <button
                       onClick={() => handleAction(c.id, 'start')}
-                      className="flex-1 flex items-center justify-center gap-1 py-2 bg-primary text-primary-foreground rounded text-sm font-medium hover:bg-primary/90"
+                      className="p-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                      title="起動"
                     >
-                      <Play className="h-4 w-4" /> Start
+                      <Play className="h-4 w-4" />
                     </button>
                   ) : (
                     <button
                       onClick={() => handleAction(c.id, 'stop')}
-                      className="flex-1 flex items-center justify-center gap-1 py-2 bg-destructive text-destructive-foreground rounded text-sm font-medium hover:bg-destructive/90"
+                      className="p-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90"
+                      title="停止"
                     >
-                      <Square className="h-4 w-4" /> Stop
+                      <Square className="h-4 w-4" />
                     </button>
                   )}
                   <button
                     onClick={() => handleAction(c.id, 'restart')}
                     className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80"
-                    title="Restart"
+                    title="再起動"
                   >
                     <RotateCcw className="h-4 w-4" />
                   </button>
                   <button
-                    className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80"
-                    title="Logs"
+                    onClick={() => setSelectedLogContainer(c)}
+                    className="flex-1 flex items-center justify-center gap-1 py-2 bg-secondary text-secondary-foreground rounded text-sm font-medium hover:bg-secondary/80"
                   >
-                    <FileText className="h-4 w-4" />
+                    <FileText className="h-4 w-4" /> ログ表示
                   </button>
                 </div>
               </div>
@@ -316,6 +320,32 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Log Modal */}
+      {selectedLogContainer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-[95vw] bg-background rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-xl font-bold">
+                {selectedLogContainer.sessionName || selectedLogContainer.name} のログ
+              </h2>
+              <button 
+                onClick={() => setSelectedLogContainer(null)}
+                className="p-2 hover:bg-secondary rounded-full transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="flex-1 flex flex-col min-h-0 p-4 overflow-hidden">
+              <LogStreamViewer 
+                containerId={selectedLogContainer.id} 
+                containerName={selectedLogContainer.name} 
+                maxLines={1000}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

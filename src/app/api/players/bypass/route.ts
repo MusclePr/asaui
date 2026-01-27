@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { addToBypassList, removeFromBypassList } from "@/lib/storage";
 import { execRcon } from "@/lib/docker";
-import { SERVERS } from "@/lib/config";
+import { getServers } from "@/lib/config";
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
     if (!eosId) return NextResponse.json({ error: "EOS ID required" }, { status: 400 });
 
     addToBypassList(eosId);
-    const targets = SERVERS.map(server => server.id).filter(Boolean);
+    const servers = getServers();
+    const targets = servers.map(server => server.id).filter(Boolean);
     await Promise.allSettled(targets.map(id => execRcon(id, `AllowPlayerToJoinNoCheck ${eosId}`)));
 
     return NextResponse.json({ success: true });
@@ -31,7 +32,8 @@ export async function DELETE(req: NextRequest) {
     if (!eosId) return NextResponse.json({ error: "EOS ID required" }, { status: 400 });
 
     removeFromBypassList(eosId);
-    const targets = SERVERS.map(server => server.id).filter(Boolean);
+    const servers = getServers();
+    const targets = servers.map(server => server.id).filter(Boolean);
     await Promise.allSettled(targets.map(id => execRcon(id, `DisallowPlayerToJoinNoCheck ${eosId}`)));
 
     return NextResponse.json({ success: true });

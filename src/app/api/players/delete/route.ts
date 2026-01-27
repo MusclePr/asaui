@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { removeFromBypassList, removeFromWhitelist, setPlayerDisplayName } from "@/lib/storage";
 import { execRcon } from "@/lib/docker";
-import { SERVERS } from "@/lib/config";
+import { getServers } from "@/lib/config";
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
@@ -17,7 +17,8 @@ export async function POST(req: NextRequest) {
     removeFromBypassList(eosId);
     setPlayerDisplayName(eosId, null);
 
-    const targets = SERVERS.map(server => server.id).filter(Boolean);
+    const servers = getServers();
+    const targets = servers.map(server => server.id).filter(Boolean);
     // ホワイトリストに追加・削除するコマンドは存在しないため、ここではDisallowPlayerToJoinNoCheckコマンドのみ実行する
     await Promise.allSettled([
       // ...targets.map(id => execRcon(id, `DisallowPlayerToJoin ${eosId}`)),

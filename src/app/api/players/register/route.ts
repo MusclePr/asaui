@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { addToBypassList, addToWhitelist, setPlayerDisplayName } from "@/lib/storage";
 import { execRcon } from "@/lib/docker";
-import { SERVERS } from "@/lib/config";
+import { getServers } from "@/lib/config";
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
@@ -15,7 +15,8 @@ export async function POST(req: NextRequest) {
     const resolvedDisplayName = (displayName ?? name ?? "").trim();
     setPlayerDisplayName(eosId, resolvedDisplayName);
 
-    const targets = SERVERS.map(server => server.id).filter(Boolean);
+    const servers = getServers();
+    const targets = servers.map(server => server.id).filter(Boolean);
 
     if (whitelist) {
       addToWhitelist(eosId);
