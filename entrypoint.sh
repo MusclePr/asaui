@@ -9,6 +9,17 @@ echo "Starting with UID: $USER_ID, GID: $GROUP_ID, DOCKER_GID: $DOCKER_GID"
 
 # Modify nodejs group if needed
 if [ "$(id -g nextjs)" -ne "$GROUP_ID" ]; then
+    # Handle user/group duplication more safely
+    EXISTING_USER_WITH_UID=$(getent passwd "$USER_ID" | cut -d: -f1)
+    if [ -n "$EXISTING_USER_WITH_UID" ] && [ "$EXISTING_USER_WITH_UID" != "nextjs" ]; then
+        userdel -f "$EXISTING_USER_WITH_UID"
+    fi
+
+    EXISTING_GROUP_WITH_GID=$(getent group "$GROUP_ID" | cut -d: -f1)
+    if [ -n "$EXISTING_GROUP_WITH_GID" ] && [ "$EXISTING_GROUP_WITH_GID" != "nodejs" ]; then
+        groupdel -f "$EXISTING_GROUP_WITH_GID" || true
+    fi
+    
     groupmod -o -g "$GROUP_ID" nodejs
 fi
 
@@ -18,16 +29,19 @@ if [ "$(id -u nextjs)" -ne "$USER_ID" ]; then
 fi
 
 # Create docker group and add nextjs to it if it doesn't exist
-if ! getent group docker > /dev/null; then
-    groupadd -g "$DOCKER_GID" docker
+DOCKER_GROUP=$(getent group "$DOCKER_GID" | cut -d: -f1)
+if [ -z "$DOCKER_GROUP" ]; then
+    DOCKER_GROUP="docker"
+    groupadd -g "$DOCKER_GID" "$DOCKER_GROUP"
 fi
-usermod -aG docker nextjs
+usermod -aG "$DOCKER_GROUP" nextjs
 
-# Set ownership of /app to current user (for static files etc)
-# User said they will manually chown /cluster, but /app belongs to the build process
+# Set ownership of /app to current user
 chown -R nextjs:nodejs /app
 
-# Final check of permissions for /cluster (just in case)
-# chown nextjs:nodejs /cluster
+echo "Checking permissions for /var/run/docker.sock..."
+ls -l /var/run/docker.sock
+echo "Execution identity: $(id nextjs)"
 
-exec su-exec nextjs:nodejs "$@"
+# Use su-exec with only the username to ensure all supplementary groups are loaded
+exec su-exec nextjs "$@"
