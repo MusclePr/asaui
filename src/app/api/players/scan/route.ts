@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { ARK_SAVE_BASE_DIR, getServers } from "@/lib/config";
-import { getBypassList, getPlayerProfiles, getWhitelist } from "@/lib/storage";
+import { getBypassList, getPlayerProfiles, getWhitelist, ensurePlayerProfiles } from "@/lib/storage";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 
 export async function GET() {
@@ -14,6 +14,7 @@ export async function GET() {
     const bypassList = getBypassList();
     const profiles = getPlayerProfiles();
     const playersMap = new Map<string, any>();
+    const allFoundEosIds = new Set<string>();
 
     const servers = getServers();
     // Scan each server's save directory
@@ -28,6 +29,7 @@ export async function GET() {
         const filePath = path.join(saveDir, file);
         const stats = fs.statSync(filePath);
         const eosId = file.replace(".arkprofile", "");
+        allFoundEosIds.add(eosId);
         
         // Simple name extraction (mock or read file header if needed)
         // For now, use EOS ID as name if multiple maps found, keep latest login
@@ -48,6 +50,7 @@ export async function GET() {
     }
 
     for (const eosId of whitelist) {
+      allFoundEosIds.add(eosId);
       const displayName = profiles[eosId]?.displayName?.trim() || undefined;
       if (!playersMap.has(eosId)) {
         playersMap.set(eosId, {
@@ -62,6 +65,7 @@ export async function GET() {
     }
 
     for (const eosId of bypassList) {
+      allFoundEosIds.add(eosId);
       const displayName = profiles[eosId]?.displayName?.trim() || undefined;
       if (!playersMap.has(eosId)) {
         playersMap.set(eosId, {
@@ -74,6 +78,9 @@ export async function GET() {
         });
       }
     }
+
+    // Sync unknown IDs to players.json
+    ensurePlayerProfiles(Array.from(allFoundEosIds));
 
     for (const [eosId, profile] of Object.entries(profiles)) {
       const displayName = profile?.displayName?.trim();

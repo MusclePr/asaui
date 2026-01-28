@@ -93,3 +93,19 @@ export function setPlayerDisplayName(eosId: string, displayName?: string | null)
   }
   writeJson(PLAYERS_META_FILE, profiles);
 }
+
+export function ensurePlayerProfiles(eosIds: string[]) {
+  if (!eosIds.length) return;
+  const profiles = getPlayerProfiles();
+  let changed = false;
+  for (const eosId of eosIds) {
+    if (!eosId) continue;
+    if (!profiles[eosId]) {
+      profiles[eosId] = { displayName: "" };
+      changed = true;
+    }
+  }
+  if (changed) {
+    writeJson(PLAYERS_META_FILE, profiles);
+  }
+}
