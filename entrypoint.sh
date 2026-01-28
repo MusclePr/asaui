@@ -5,7 +5,14 @@ USER_ID=${PUID:-1000}
 GROUP_ID=${PGID:-1000}
 DOCKER_GID=${DOCKER_GID:-999}
 
-echo "Starting with UID: $USER_ID, GID: $GROUP_ID, DOCKER_GID: $DOCKER_GID"
+# Detect host path for /cluster (DooD volume path resolution)
+export HOST_CLUSTER_DIR=$(cat /proc/self/mountinfo | grep ' /cluster ' | cut -d ' ' -f 4)
+if [ -z "$HOST_CLUSTER_DIR" ]; then
+    echo "Error: Could not determine HOST_CLUSTER_DIR from /proc/self/mountinfo. Make sure /cluster is bind-mounted."
+    exit 1
+fi
+
+echo "Starting with UID: $USER_ID, GID: $GROUP_ID, DOCKER_GID: $DOCKER_GID, HOST_CLUSTER_DIR: $HOST_CLUSTER_DIR"
 
 # Modify nodejs group if needed
 if [ "$(id -g nextjs)" -ne "$GROUP_ID" ]; then

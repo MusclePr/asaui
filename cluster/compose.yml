@@ -14,8 +14,8 @@ services:
       QUERY_PORT: "${ASA_main_QUERY_PORT}"
       SLAVE_PORTS: "${ASA_sub1_SERVER_PORT}"
     volumes:
-      - ./server:/opt/arkserver
-      - ./backups:/var/backups
+      - ${HOST_CLUSTER_DIR:-.}/server:/opt/arkserver
+      - ${HOST_CLUSTER_DIR:-.}/backups:/var/backups
     ports:
       - "${ASA_main_SERVER_PORT}:${ASA_main_SERVER_PORT}/udp"
       - "${ASA_main_QUERY_PORT}:${ASA_main_QUERY_PORT}/udp"
@@ -36,8 +36,8 @@ services:
       QUERY_PORT: "${ASA_sub1_QUERY_PORT}"
       LOG_FILE: "ShooterGame_sub1.log"
     volumes:
-      - ./server:/opt/arkserver
-      - ./backups:/var/backups:ro # restore only
+      - ${HOST_CLUSTER_DIR:-.}/server:/opt/arkserver
+      - ${HOST_CLUSTER_DIR:-.}/backups:/var/backups:ro # restore only
     ports:
       - "${ASA_sub1_SERVER_PORT}:${ASA_sub1_SERVER_PORT}/udp"
       - "${ASA_sub1_QUERY_PORT}:${ASA_sub1_QUERY_PORT}/udp"

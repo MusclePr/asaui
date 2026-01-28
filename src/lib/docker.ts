@@ -1,8 +1,11 @@
 import Docker from 'dockerode';
+import fs from 'node:fs';
+import path from 'node:path';
 import { ContainerStatus } from '@/types';
 import { getServers } from './config';
 import { getMapDisplayName } from './maps';
 import { getPlayerProfiles } from './storage';
+import { SIGNAL_DIR } from './cluster';
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
@@ -10,11 +13,24 @@ export async function getContainers(): Promise<ContainerStatus[]> {
   const containers = await docker.listContainers({ all: true });
   const definedServers = getServers();
 
+  const signalsExist = fs.existsSync(SIGNAL_DIR);
+  const globalMaintenance = signalsExist && fs.existsSync(path.join(SIGNAL_DIR, 'maintenance.lock'));
+  const globalUpdating = signalsExist && fs.existsSync(path.join(SIGNAL_DIR, 'updating.lock'));
+  const globalUpdateRequest = signalsExist && fs.existsSync(path.join(SIGNAL_DIR, 'update.request'));
+
   return Promise.all(definedServers.map(async server => {
     // Find container by container_name (usually includes service name)
     const container = containers.find(c => 
       c.Names.some(name => name === `/${server.containerName}` || name === `/${server.id}`)
     );
+
+    let detailedState: string | undefined = undefined;
+    if (globalUpdating) detailedState = "UPDATING";
+    else if (globalMaintenance) detailedState = "MAINTENANCE";
+    else if (globalUpdateRequest) detailedState = "UPDATE REQ";
+    else if (server.port && signalsExist && fs.existsSync(path.join(SIGNAL_DIR, `waiting_${server.port}.flag`))) {
+      detailedState = "WAITING";
+    }
 
     if (container) {
       // Extract health from status string: "Up X hours (healthy)"
@@ -63,6 +79,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         status: container.Status,
         health,
         isStopping,
+        detailedState,
         onlinePlayers,
         map: getMapDisplayName(server.map),
         mapRaw: server.map,
@@ -76,6 +93,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         image: "(not created)",
         state: "not_created",
         status: "Not created",
+        detailedState,
         map: getMapDisplayName(server.map),
         mapRaw: server.map,
         sessionName: server.sessionName,

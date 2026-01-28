@@ -14,6 +14,7 @@ export interface CachedService {
   image: string;
   sessionName: string;
   mapRaw: string;
+  port: string;
 }
 
 const CACHE_FILE = path.join(CLUSTER_DIR, ".services.cache.json");
@@ -42,6 +43,7 @@ export async function refreshServerCache(): Promise<CachedService[]> {
           image: service.image,
           sessionName: service.environment?.SESSION_NAME || "",
           mapRaw: service.environment?.SERVER_MAP || "",
+          port: service.environment?.SERVER_PORT || "",
         });
       }
     }

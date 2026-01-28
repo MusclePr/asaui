@@ -6,7 +6,8 @@ export function getServers() {
     id: s.id,
     containerName: s.containerName,
     sessionName: s.sessionName,
-    map: s.mapRaw
+    map: s.mapRaw,
+    port: s.port
   }));
 }
 

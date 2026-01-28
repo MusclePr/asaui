@@ -339,12 +339,16 @@ export default function Dashboard() {
                     <p className="text-sm text-muted-foreground truncate">{c.name}</p>
                   </div>
                   <div className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                    c.detailedState === 'UPDATING' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
+                    c.detailedState === 'MAINTENANCE' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' :
+                    c.detailedState === 'WAITING' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' :
+                    c.detailedState === 'UPDATE REQ' ? 'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20' :
                     c.isStopping ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
                     c.state === 'running' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 
                     c.state === 'exited' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
                     'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
                   }`}>
-                    {c.isStopping ? 'STOPPING' : c.state.toUpperCase()}
+                    {c.detailedState || (c.isStopping ? 'STOPPING' : c.state.toUpperCase())}
                     {c.health && (
                       <span className={`uppercase border-l pl-1 ml-1 ${
                         c.health === 'healthy' ? 'border-green-500/30' : 
