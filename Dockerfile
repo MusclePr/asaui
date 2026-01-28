@@ -30,7 +30,7 @@ ENV NODE_ENV production
 # ENV NEXT_TELEMETRY_DISABLED 1
 
 # Needed for running `docker compose` against the host daemon via /var/run/docker.sock
-RUN apk add --no-cache docker-cli docker-cli-compose
+RUN apk add --no-cache docker-cli docker-cli-compose su-exec shadow
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -47,10 +47,14 @@ RUN mkdir -p /cluster
 
 VOLUME /cluster
 
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # USER nextjs
 
 EXPOSE 3000
 
 ENV PORT 3000
 
+ENTRYPOINT ["entrypoint.sh"]
 CMD ["node", "server.js"]
