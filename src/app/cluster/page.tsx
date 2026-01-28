@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import AppLayout from "@/components/AppLayout";
 import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff } from "lucide-react";
 import { PasswordInput } from "@/components/PasswordInput";
+import { getApiUrl } from "@/lib/utils";
 
 type Settings = {
   MAX_PLAYERS: number;
@@ -85,7 +86,7 @@ export default function ClusterSettingsPage() {
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch("/api/cluster/env", { cache: "no-store" });
+      const res = await fetch(getApiUrl("/api/cluster/env"), { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load settings");
 
@@ -132,7 +133,7 @@ export default function ClusterSettingsPage() {
   const fetchModInfo = async (id: string) => {
     if (modInfo[id]) return;
     try {
-      const res = await fetch(`/api/curseforge/mod/${id}`, { cache: "no-store" });
+      const res = await fetch(getApiUrl(`/api/curseforge/mod/${id}`), { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "lookup failed");
       setModInfo((prev) => ({
@@ -224,7 +225,7 @@ export default function ClusterSettingsPage() {
         MODS: modsCsv,
         ALL_MODS: allModsCsv,
       };
-      const res = await fetch("/api/cluster/env", {
+      const res = await fetch(getApiUrl("/api/cluster/env"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

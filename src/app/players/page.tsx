@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { User, ShieldCheck, ShieldAlert, Search, RefreshCw, ShieldOff, Info, Trash2 } from "lucide-react";
 import { PlayerInfo } from "@/types";
+import { getApiUrl } from "@/lib/utils";
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<PlayerInfo[]>([]);
@@ -19,7 +20,7 @@ export default function PlayersPage() {
   const fetchPlayers = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/players/scan");
+      const res = await fetch(getApiUrl("/api/players/scan"));
       const data = await res.json();
       setPlayers(data);
     } catch (err) {
@@ -36,7 +37,7 @@ export default function PlayersPage() {
   const toggleWhitelist = async (eosId: string) => {
     try {
       const player = players.find(p => p.eosId === eosId);
-      const res = await fetch("/api/players/whitelist", {
+      const res = await fetch(getApiUrl("/api/players/whitelist"), {
         method: player?.isWhitelisted ? "DELETE" : "POST",
         body: JSON.stringify({ eosId }),
       });
@@ -49,7 +50,7 @@ export default function PlayersPage() {
   const toggleBypass = async (eosId: string) => {
     try {
       const player = players.find(p => p.eosId === eosId);
-      const res = await fetch("/api/players/bypass", {
+      const res = await fetch(getApiUrl("/api/players/bypass"), {
         method: player?.isBypassed ? "DELETE" : "POST",
         body: JSON.stringify({ eosId }),
       });
@@ -69,7 +70,7 @@ export default function PlayersPage() {
   const deletePlayer = async (eosId: string) => {
     if (!confirm("このプレイヤーを削除しますか？\nホワイトリストとバイパスリストも解除されます。")) return;
     try {
-      const res = await fetch("/api/players/delete", {
+      const res = await fetch(getApiUrl("/api/players/delete"), {
         method: "POST",
         body: JSON.stringify({ eosId }),
       });
@@ -99,7 +100,7 @@ export default function PlayersPage() {
 
     setRegisterLoading(true);
     try {
-      const res = await fetch("/api/players/register", {
+      const res = await fetch(getApiUrl("/api/players/register"), {
         method: "POST",
         body: JSON.stringify({
           eosId,

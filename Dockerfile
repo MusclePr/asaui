@@ -18,6 +18,8 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+ARG NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 RUN npm run build
 
 # Production image, copy all the files and run next

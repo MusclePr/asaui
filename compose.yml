@@ -4,6 +4,8 @@ services:
     image: ghcr.io/musclepr/asaui:latest
     build:
       context: .
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/asaui}
     restart: unless-stopped
     env_file: .env
     volumes:

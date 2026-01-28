@@ -6,6 +6,7 @@ import AppLayout from "@/components/AppLayout";
 import { Play, Square, RotateCcw, FileText, X, Terminal, Send } from "lucide-react";
 import { ContainerStatus } from "@/types";
 import LogStreamViewer from "@/components/LogStreamViewer";
+import { getApiUrl } from "@/lib/utils";
 
 type ClusterComposeResponse = {
   success?: boolean;
@@ -53,7 +54,7 @@ export default function Dashboard() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch("/api/containers");
+      const res = await fetch(getApiUrl("/api/containers"));
       const data = await res.json();
       if (Array.isArray(data)) {
         setContainers(data);
@@ -76,7 +77,7 @@ export default function Dashboard() {
   const handleAction = async (id: string, action: string) => {
     setActionsInProgress(prev => ({ ...prev, [id]: true }));
     try {
-      await fetch(`/api/containers/${id}`, {
+      await fetch(getApiUrl(`/api/containers/${id}`), {
         method: "POST",
         body: JSON.stringify({ action }),
       });
@@ -92,7 +93,7 @@ export default function Dashboard() {
     if (!confirm(`プレイヤー 「${playerName}」 を KICK しますか？`)) return;
     
     try {
-      const res = await fetch("/api/rcon", {
+      const res = await fetch(getApiUrl("/api/rcon"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -115,7 +116,7 @@ export default function Dashboard() {
     setClusterBusy(action);
     setClusterLog(null);
     try {
-      const res = await fetch("/api/cluster/compose", {
+      const res = await fetch(getApiUrl("/api/cluster/compose"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
@@ -171,7 +172,7 @@ export default function Dashboard() {
     setRconOutput(prev => [...prev, { type: 'cmd', text: cmd }]);
 
     try {
-      const res = await fetch("/api/rcon", {
+      const res = await fetch(getApiUrl("/api/rcon"), {
         method: "POST",
         body: JSON.stringify({ 
           command: cmd,
