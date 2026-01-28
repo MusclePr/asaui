@@ -4,6 +4,7 @@ import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { LogIn } from "lucide-react";
 import { PasswordInput } from "./PasswordInput";
+import { getApiUrl } from "@/lib/utils";
 
 export default function LoginButton() {
   const [password, setPassword] = useState("");
@@ -18,7 +19,7 @@ export default function LoginButton() {
     const result = await signIn("credentials", {
       password,
       redirect: true,
-      callbackUrl: "/",
+      callbackUrl: getApiUrl("/"),
     });
 
     if (result?.error) {
