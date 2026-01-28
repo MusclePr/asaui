@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Terminal } from 'lucide-react';
 import Convert from 'ansi-to-html';
+import { getApiUrl } from '@/lib/utils';
 
 interface LogEntry {
   text: string;
@@ -40,7 +41,7 @@ export default function LogStreamViewer({
       setIsConnected(false);
       setError(null);
       
-      eventSource = new EventSource(`/api/containers/${containerId}/logs`);
+      eventSource = new EventSource(getApiUrl(`/api/containers/${containerId}/logs`));
 
       eventSource.onopen = () => {
         setIsConnected(true);

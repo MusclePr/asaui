@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getContainerLogsStream } from '@/lib/docker';
+import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +8,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await requireSession();
+  if (!session) return unauthorizedResponse();
+
   const { id } = await params;
   const containerId = id;
 
