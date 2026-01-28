@@ -10,6 +10,7 @@ type Settings = {
   MAX_PLAYERS: number;
   SERVER_PASSWORD: string;
   ARK_ADMIN_PASSWORD: string;
+  CLUSTER_ID: string;
   MODS: string;
   ALL_MODS: string;
   ARK_EXTRA_OPTS: string;
@@ -49,6 +50,7 @@ export default function ClusterSettingsPage() {
     MAX_PLAYERS: 10,
     SERVER_PASSWORD: "",
     ARK_ADMIN_PASSWORD: "",
+    CLUSTER_ID: "",
     MODS: "",
     ALL_MODS: "",
     ARK_EXTRA_OPTS: "",
@@ -59,6 +61,7 @@ export default function ClusterSettingsPage() {
     MAX_PLAYERS: 10,
     SERVER_PASSWORD: "",
     ARK_ADMIN_PASSWORD: "",
+    CLUSTER_ID: "",
     MODS: "",
     ALL_MODS: "",
     ARK_EXTRA_OPTS: "",
@@ -92,6 +95,7 @@ export default function ClusterSettingsPage() {
         MAX_PLAYERS: Number.isFinite(d.MAX_PLAYERS) ? Number(d.MAX_PLAYERS) : 10,
         SERVER_PASSWORD: d.SERVER_PASSWORD ?? "",
         ARK_ADMIN_PASSWORD: d.ARK_ADMIN_PASSWORD ?? "",
+        CLUSTER_ID: d.CLUSTER_ID ?? "",
         MODS: d.MODS ?? "",
         ALL_MODS: d.ALL_MODS ?? "",
         ARK_EXTRA_OPTS: d.ARK_EXTRA_OPTS ?? "",
@@ -101,6 +105,7 @@ export default function ClusterSettingsPage() {
         MAX_PLAYERS: Number.isFinite(s.MAX_PLAYERS) ? Number(s.MAX_PLAYERS) : 10,
         SERVER_PASSWORD: s.SERVER_PASSWORD ?? "",
         ARK_ADMIN_PASSWORD: s.ARK_ADMIN_PASSWORD ?? "",
+        CLUSTER_ID: s.CLUSTER_ID ?? "",
         MODS: s.MODS ?? "",
         ALL_MODS: s.ALL_MODS ?? "",
         ARK_EXTRA_OPTS: s.ARK_EXTRA_OPTS ?? "",
@@ -189,6 +194,8 @@ export default function ClusterSettingsPage() {
     if (p1) return p1;
     const p2 = validatePassword(settings.ARK_ADMIN_PASSWORD, "ARK_ADMIN_PASSWORD");
     if (p2) return p2;
+    const p3 = validatePassword(settings.CLUSTER_ID, "CLUSTER_ID");
+    if (p3) return p3;
     const m1 = validateMods(modsCsv, "MODS");
     if (m1) return m1;
     const m2 = validateMods(allModsCsv, "ALL_MODS");
@@ -281,7 +288,7 @@ export default function ClusterSettingsPage() {
     }));
   };
 
-  const resetPassword = (key: "SERVER_PASSWORD" | "ARK_ADMIN_PASSWORD") => {
+  const resetStringField = (key: "SERVER_PASSWORD" | "ARK_ADMIN_PASSWORD" | "CLUSTER_ID") => {
     setSettings((prev) => ({
       ...prev,
       [key]: defaults[key],
@@ -377,7 +384,7 @@ export default function ClusterSettingsPage() {
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-sm font-medium">SERVER_PASSWORD</label>
                       <button
-                        onClick={() => resetPassword("SERVER_PASSWORD")}
+                        onClick={() => resetStringField("SERVER_PASSWORD")}
                         className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
                         type="button"
                       >
@@ -405,7 +412,7 @@ export default function ClusterSettingsPage() {
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-sm font-medium">ARK_ADMIN_PASSWORD</label>
                       <button
-                        onClick={() => resetPassword("ARK_ADMIN_PASSWORD")}
+                        onClick={() => resetStringField("ARK_ADMIN_PASSWORD")}
                         className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
                         type="button"
                       >
@@ -560,7 +567,42 @@ export default function ClusterSettingsPage() {
 
             {isAdmin && (
               <div className="p-6 bg-card border rounded-lg space-y-4">
-                <h3 className="text-lg font-semibold">追加オプション</h3>
+                <h3 className="text-lg font-semibold">高度なオプション</h3>
+
+                <details className="border rounded p-4 bg-background">
+                  <summary className="cursor-pointer select-none font-medium">
+                    CLUSTER_ID（クリックで展開）
+                  </summary>
+                  <div className="pt-4 space-y-2">
+                    <div className="flex items-center justify-end">
+                      <button
+                        onClick={() => resetStringField("CLUSTER_ID")}
+                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                        type="button"
+                      >
+                        デフォルトに戻す
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={settings.CLUSTER_ID}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          CLUSTER_ID: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border rounded bg-background font-mono"
+                      maxLength={32}
+                      placeholder="（空なら未設定）"
+                    />
+                    <p className="text-xs text-muted-foreground">クラスタ間同期（転送）の識別に必要です。</p>
+                    <p className="text-xs text-muted-foreground">空白/改行/#/'/\" は禁止（.env破壊防止）</p>
+                    <p className="text-xs text-muted-foreground">
+                      デフォルト: <span className="font-mono">{defaults.CLUSTER_ID || "(empty)"}</span>
+                    </p>
+                  </div>
+                </details>
 
                 <details className="border rounded p-4 bg-background">
                   <summary className="cursor-pointer select-none font-medium">

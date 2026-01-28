@@ -23,6 +23,7 @@ const OVERRIDE_KEYS = [
   "MAX_PLAYERS",
   "SERVER_PASSWORD",
   "ARK_ADMIN_PASSWORD",
+  "CLUSTER_ID",
   "MODS",
   "ALL_MODS",
   "ARK_EXTRA_OPTS",
@@ -33,6 +34,7 @@ type Body = {
   MAX_PLAYERS?: number;
   SERVER_PASSWORD?: string;
   ARK_ADMIN_PASSWORD?: string;
+  CLUSTER_ID?: string;
   MODS?: string;
   ALL_MODS?: string;
   ARK_EXTRA_OPTS?: string;
@@ -78,6 +80,7 @@ export async function GET() {
     if (Number.isFinite(defaultMaxPlayers)) defaults.MAX_PLAYERS = defaultMaxPlayers;
     defaults.SERVER_PASSWORD = base.SERVER_PASSWORD ?? "";
     defaults.ARK_ADMIN_PASSWORD = base.ARK_ADMIN_PASSWORD ?? "";
+    defaults.CLUSTER_ID = base.CLUSTER_ID ?? "";
     defaults.MODS = base.MODS ?? "";
     defaults.ALL_MODS = base.ALL_MODS ?? "";
     defaults.ARK_EXTRA_OPTS = base.ARK_EXTRA_OPTS ?? "";
@@ -94,6 +97,7 @@ export async function GET() {
       currentOverrides.SERVER_PASSWORD ?? base.SERVER_PASSWORD ?? "";
     body.ARK_ADMIN_PASSWORD =
       currentOverrides.ARK_ADMIN_PASSWORD ?? base.ARK_ADMIN_PASSWORD ?? "";
+    body.CLUSTER_ID = currentOverrides.CLUSTER_ID ?? base.CLUSTER_ID ?? "";
     body.MODS = currentOverrides.MODS ?? base.MODS ?? "";
     body.ALL_MODS = currentOverrides.ALL_MODS ?? base.ALL_MODS ?? "";
     body.ARK_EXTRA_OPTS =
@@ -129,6 +133,9 @@ export async function PUT(req: NextRequest) {
     const adminPassV = validatePassword(raw.ARK_ADMIN_PASSWORD ?? "", "ARK_ADMIN_PASSWORD");
     if (!adminPassV.ok) return NextResponse.json({ error: adminPassV.error }, { status: 400 });
 
+    const clusterIdV = validatePassword(raw.CLUSTER_ID ?? "", "CLUSTER_ID");
+    if (!clusterIdV.ok) return NextResponse.json({ error: clusterIdV.error }, { status: 400 });
+
     const modsV = validateModsCsv(raw.MODS ?? "");
     if (!modsV.ok) return NextResponse.json({ error: modsV.error }, { status: 400 });
 
@@ -145,6 +152,7 @@ export async function PUT(req: NextRequest) {
       MAX_PLAYERS: maxPlayersV.value !== undefined ? String(maxPlayersV.value) : "",
       SERVER_PASSWORD: serverPassV.value ?? "",
       ARK_ADMIN_PASSWORD: adminPassV.value ?? "",
+      CLUSTER_ID: clusterIdV.value ?? "",
       MODS: modsV.value ?? "",
       ALL_MODS: allModsV.value ?? "",
       ARK_EXTRA_OPTS: extraOptsV.value ?? "",

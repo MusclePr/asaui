@@ -47,6 +47,7 @@ export const EDITABLE_KEYS = [
   "MAX_PLAYERS",
   "SERVER_PASSWORD",
   "ARK_ADMIN_PASSWORD",
+  "CLUSTER_ID",
   "MODS",
   "ALL_MODS",
   "ARK_EXTRA_OPTS",
@@ -59,6 +60,7 @@ export type ClusterEditableSettings = {
   MAX_PLAYERS?: number;
   SERVER_PASSWORD?: string;
   ARK_ADMIN_PASSWORD?: string;
+  CLUSTER_ID?: string;
   MODS?: string;
   ALL_MODS?: string;
   ARK_EXTRA_OPTS?: string;
@@ -124,6 +126,7 @@ export function mergeEffectiveEnv(base: EnvMap, overrides: ClusterEditableSettin
   if (overrides.MAX_PLAYERS !== undefined) merged.MAX_PLAYERS = String(overrides.MAX_PLAYERS);
   if (overrides.SERVER_PASSWORD !== undefined) merged.SERVER_PASSWORD = overrides.SERVER_PASSWORD;
   if (overrides.ARK_ADMIN_PASSWORD !== undefined) merged.ARK_ADMIN_PASSWORD = overrides.ARK_ADMIN_PASSWORD;
+  if (overrides.CLUSTER_ID !== undefined) merged.CLUSTER_ID = overrides.CLUSTER_ID;
   if (overrides.MODS !== undefined) merged.MODS = overrides.MODS;
   if (overrides.ARK_EXTRA_OPTS !== undefined) merged.ARK_EXTRA_OPTS = overrides.ARK_EXTRA_OPTS;
   if (overrides.ARK_EXTRA_DASH_OPTS !== undefined) merged.ARK_EXTRA_DASH_OPTS = overrides.ARK_EXTRA_DASH_OPTS;

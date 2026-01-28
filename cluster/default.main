@@ -1,8 +1,8 @@
 # main default env
 # NOTE: asaui will read this and .main directly in compose.yml.
 
-SERVER_MAP=TheIsland_WP
 SESSION_NAME="ASA_Docker main"
+SERVER_MAP=TheIsland_WP
 
 # Backup Settings
 AUTO_BACKUP_ENABLED=true

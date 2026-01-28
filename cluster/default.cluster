@@ -22,10 +22,13 @@ RCON_PORT=32330
 
 # Mods: Please provide a comma seperated list of the curse-forge modIDs and uncomment the MODS arg
 # e.g. MODS=931872,931338
-MODS=929800,929420,935408,928793,933975,929578,930494,933447,941697,935528,936145,1002660,929785,930381
+MODS=929800,929420,935408,928793,933975,929578,930494,933447,941697,935528,936145,1002660,929785,930381,928708
 
 # Enable ServerGameLog
 SERVERGAMELOG=true
+
+# Cluster
+CLUSTER_ID=GlobalUniqueClusterID
 
 ARK_EXTRA_DASH_OPTS=-exclusivejoin -ForceAllowCaveFlyers -ForceRespawnDinos -AllowRaidDinoFeeding=true -ServerPlatform=ALL -RedownloadModsOnServerRestart
 ARK_EXTRA_OPTS=?ServerCrosshair=true?OverrideStructurePlatformPrevention=true?OverrideOfficialDifficulty=5.0?ShowFloatingDamageText=true?AllowFlyerCarryPvE=true

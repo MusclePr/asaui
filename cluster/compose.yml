@@ -19,7 +19,7 @@ services:
     ports:
       - "${ASA_main_SERVER_PORT}:${ASA_main_SERVER_PORT}/udp"
       - "${ASA_main_QUERY_PORT}:${ASA_main_QUERY_PORT}/udp"
-    stop_grace_period: 60s
+    stop_grace_period: 120s
 
   asa_sub1:
     container_name: asa_sub1
@@ -41,4 +41,4 @@ services:
     ports:
       - "${ASA_sub1_SERVER_PORT}:${ASA_sub1_SERVER_PORT}/udp"
       - "${ASA_sub1_QUERY_PORT}:${ASA_sub1_QUERY_PORT}/udp"
-    stop_grace_period: 60s
+    stop_grace_period: 120s
