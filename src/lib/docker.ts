@@ -14,9 +14,6 @@ export async function getContainers(): Promise<ContainerStatus[]> {
   const definedServers = getServers();
 
   const signalsExist = fs.existsSync(SIGNAL_DIR);
-  const globalMaintenance = signalsExist && fs.existsSync(path.join(SIGNAL_DIR, 'maintenance.lock'));
-  const globalUpdating = signalsExist && fs.existsSync(path.join(SIGNAL_DIR, 'updating.lock'));
-  const globalUpdateRequest = signalsExist && fs.existsSync(path.join(SIGNAL_DIR, 'update.request'));
 
   return Promise.all(definedServers.map(async server => {
     // Find container by container_name (usually includes service name)
@@ -25,11 +22,15 @@ export async function getContainers(): Promise<ContainerStatus[]> {
     );
 
     let detailedState: string | undefined = undefined;
-    if (globalUpdating) detailedState = "UPDATING";
-    else if (globalMaintenance) detailedState = "MAINTENANCE";
-    else if (globalUpdateRequest) detailedState = "UPDATE REQ";
-    else if (server.port && signalsExist && fs.existsSync(path.join(SIGNAL_DIR, `waiting_${server.port}.flag`))) {
-      detailedState = "WAITING";
+    if (server.port && signalsExist) {
+      const statusFile = path.join(SIGNAL_DIR, `status_${server.port}`);
+      if (fs.existsSync(statusFile)) {
+        try {
+          detailedState = fs.readFileSync(statusFile, 'utf8').trim() || undefined;
+        } catch (e) {
+          console.warn(`Failed to read status file for ${server.id}:`, e);
+        }
+      }
     }
 
     if (container) {

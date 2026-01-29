@@ -52,9 +52,9 @@ export default function Dashboard() {
   const [rconLoading, setRconLoading] = useState(false);
   const rconScrollRef = useRef<HTMLDivElement>(null);
 
-  const fetchStatus = async () => {
+  const fetchStatus = async (forceRefresh = false) => {
     try {
-      const res = await fetch(getApiUrl("/api/containers"));
+      const res = await fetch(getApiUrl(`/api/containers${forceRefresh ? "?refresh=true" : ""}`));
       const data = await res.json();
       if (Array.isArray(data)) {
         setContainers(data);
@@ -231,7 +231,7 @@ export default function Dashboard() {
               一括停止
             </button>
             <button
-              onClick={fetchStatus}
+              onClick={() => fetchStatus(true)}
               className="px-4 py-2 bg-secondary text-secondary-foreground rounded text-sm hover:bg-secondary/80"
             >
               更新
@@ -339,13 +339,13 @@ export default function Dashboard() {
                     <p className="text-sm text-muted-foreground truncate">{c.name}</p>
                   </div>
                   <div className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 ${
-                    c.detailedState === 'UPDATING' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
+                    c.detailedState === 'UPDATING' || c.detailedState === 'BACKUP_SAVE' || c.detailedState === 'RESTORING' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
                     c.detailedState === 'MAINTENANCE' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' :
-                    c.detailedState === 'WAITING' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' :
+                    c.detailedState === 'WAITING' || c.detailedState === 'WAIT_MASTER' || c.detailedState === 'WAIT_INSTALL' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' :
                     c.detailedState === 'UPDATE REQ' ? 'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20' :
-                    c.isStopping ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
-                    c.state === 'running' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 
-                    c.state === 'exited' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
+                    c.detailedState === 'STOPPING' || c.detailedState === 'STARTING' || c.isStopping ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
+                    c.detailedState === 'RUNNING' || (c.state === 'running' && !c.detailedState) ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 
+                    c.detailedState === 'STOPPED' || (c.state === 'exited' && !c.detailedState) ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
                     'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
                   }`}>
                     {c.detailedState || (c.isStopping ? 'STOPPING' : c.state.toUpperCase())}

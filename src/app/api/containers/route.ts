@@ -1,16 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { getContainers } from "@/lib/docker";
 import { getServers } from "@/lib/config";
 import { refreshServerCache } from "@/lib/compose";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
 
+  const { searchParams } = new URL(request.url);
+  const forceRefresh = searchParams.get("refresh") === "true";
+
   try {
-    // If no servers are cached, trigger a refresh
-    if (getServers().length === 0) {
+    // If no servers are cached, or if forceRefresh is requested, trigger a refresh
+    if (getServers().length === 0 || forceRefresh) {
       await refreshServerCache();
     }
     const containers = await getContainers();
