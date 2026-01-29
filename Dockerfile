@@ -1,8 +1,7 @@
-FROM node:20-alpine AS base
+FROM node:lts-slim AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
@@ -26,14 +25,23 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
+ENV NODE_ENV=production
 # ENV NEXT_TELEMETRY_DISABLED 1
 
 # Needed for running `docker compose` against the host daemon via /var/run/docker.sock
-RUN apk add --no-cache docker-cli docker-cli-compose su-exec shadow
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    docker.io \
+    curl \
+    ca-certificates \
+    gosu \
+    tzdata \
+    && mkdir -p /usr/local/lib/docker/cli-plugins \
+    && curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose \
+    && chmod +x /usr/local/lib/docker/cli-plugins/docker-compose \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 --gid nodejs nextjs
 
 COPY --from=builder /app/public ./public
 
@@ -54,7 +62,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 3000
 
-ENV PORT 3000
+ENV PORT=3000
 
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["node", "server.js"]
