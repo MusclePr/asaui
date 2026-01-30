@@ -31,17 +31,12 @@
 ARK の既存設定を `asaui` で扱う際、以下の拡張・制約を設ける。
 
 ```bash
-# asaui 認証設定
-ASAUI_PASSWORD=your_secure_password_here
-NEXTAUTH_SECRET=your_random_secret_string
-NEXTAUTH_URL=http://localhost:8080
-
-# 管理対象サーバー
-ARK_SERVERS="asa_main asa_sub1"
-
-# MOD管理用の追加変数
-# MODS: 実際にサーバーで読み込まれる MOD ID 一覧（カンマ区切り）
-# ALL_MODS: UI 上で管理されている（無効化分を含む）全 MOD ID 一覧
+ASAUI_PASSWORD=your_secure_password
+ASAUI_SIMPLE_PASSWORD=your_simple_password
+NEXT_PUBLIC_BASE_PATH=/asaui
+NEXTAUTH_SECRET=YourOriginalPrivateSecretSign
+# https://docs.curseforge.com/rest-api/#authentication
+CURSEFORGE_API_KEY=
 ```
 
 ### 2.2 永続化データ
@@ -101,7 +96,7 @@ asaui は複数の設定ファイルをマージして最終的な `.env`（環�
 - **外部連携:** `CURSEFORGE_API_KEY` が設定されている場合、CurseForge API から MOD の名称と URL を自動取得。
 
 ### 3.4 バリデーション & 安全性
-`.env` ファイルの構文を破壊しないよう、設定保存時に以下のバリデーションを実行する。
+`.cluster` ファイルの構文を破壊しないよう、設定保存時に以下のバリデーションを実行する。
 - **禁止文字:** `#`, `'`, `"`, 改行, 空白（パスワードやMOD IDなどのフィールド）。
 - **型チェック:** `MAX_PLAYERS` の数値範囲（1〜100）や、MOD ID の数字形式チェック。
 
@@ -120,7 +115,7 @@ asaui は複数の設定ファイルをマージして最終的な `.env`（環�
 ### 4.1 ページ構成
 - **ダッシュボード (`/`):** サーバー状況の一覧、一括操作、操作履歴ログ。
 - **プレイヤー管理 (`/players`):** プレイヤー一覧、ホワイトリスト/バイパスリスト管理（セーブスキャン機能）。
-- **RCON コンソール (`/rcon`):** 指定したサーバーへの RCON コマンド送信。
+- **RCON コンソール (`/rcon`):** 指定したサーバーへの RCON コマンド送信。（古い情報です。要訂正。）
 - **設定 (`/cluster`):** クラスタ全体の環境変数編集。
 
 ### 4.2 ボタンの優先順位とレイアウト

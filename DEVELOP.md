@@ -24,68 +24,12 @@ asaui は以下を提供する:
 - 環境変数 `.env` ファイル:
 
 ```bash
-# Docker Image Settings
-# Change User and Group ID to the owner of the files (docker compose build required to take effect)
-#PGID=1000
-#PUID=1000
-
-# Basic server config
-TZ=Asia/Tokyo
-DOMAIN=TEST
-MAX_PLAYERS=10
-# Backup Settings
-#AUTO_BACKUP_ENABLED=false
-#AUTO_BACKUP_CRON_EXPRESSION="0 0 * * *"
-#OLD_BACKUP_DAYS=7
-
-# Healthcheck Settings
-#HEALTHCHECK_SELFHEALING_ENABLED=false
-
-# Update Settings
-AUTO_UPDATE_ENABLED=false
-#AUTO_UPDATE_CRON_EXPRESSION="0 * * * *"
-#UPDATE_WARN_MINUTES=30
-
-# Discord Notifications
-#DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/XXXXXX/YYYYYYYYYYYYYYYYYYYYYY/
-
-# Comment to disable password
-SERVER_PASSWORD=
-ARK_ADMIN_PASSWORD=*********
-
-# Comment to disable RCON
-# If you disable RCON, the builtin manager won't work
-RCON_PORT=32330
-
-# Multihome IP
-#MULTIHOME=0.0.0.0
-
-# Server IP (adds -ServerIP=<IP>)
-#SERVER_IP=ark.a-b-c-d.com
-
-# Comment to enable BattlEye
-DISABLE_BATTLEYE=1
-
-# Mods: Please provide a comma seperated list of the curse-forge modIDs and uncomment the MODS arg
-# e.g. MODS=931872,931338
-MODS=929800,929420,935408,928793,933975,929578,930494,933447,941697,935528,936145
-# ALL_MODS: Registered mod IDs for UI management (including disabled ones)
-ALL_MODS=929800,929420,935408,928793,933975,929578,930494,933447,941697,935528,936145
-
-# Cluster Settings
-CLUSTER_ID=MyCluster
-
-# Enable ServerGameLog
-SERVERGAMELOG=true
-
-# Extra arguments
-# see https://ark.wiki.gg/wiki/Server_configuration
-ARK_EXTRA_OPTS=
-# CustomDynamicConfigUrl="config/dynamicconfig.ini"
-ARK_EXTRA_DASH_OPTS="-exclusivejoin -ForceAllowCaveFlyers -ForceRespawnDinos -AllowRaidDinoFeeding=true -ServerPlatform=ALL -RedownloadModsOnServerRestart"
-# -UseDynamicConfig
-
-ARK_SERVERS="asa_main asa_sub1"
+ASAUI_PASSWORD=your_secure_password
+ASAUI_SIMPLE_PASSWORD=your_simple_password
+NEXT_PUBLIC_BASE_PATH=/asaui
+NEXTAUTH_SECRET=YourOriginalPrivateSecretSign
+# https://docs.curseforge.com/rest-api/#authentication
+CURSEFORGE_API_KEY=
 ```
 
 - compose 構成: `compose.yml` ファイル（本リポジトリの現行例）:
@@ -97,8 +41,16 @@ services:
     image: ghcr.io/musclepr/asaui:latest
     build:
       context: .
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/asaui}
     restart: unless-stopped
     env_file: .env
+    environment:
+      - "TZ=Asia/Tokyo"
+      - "PUID=1000"
+      - "PGID=1000"
+      - "DOCKER_GID=999"
+      - "NEXTAUTH_URL=http://localhost:8080${NEXT_PUBLIC_BASE_PATH:-/asaui}"
     volumes:
       - ./cluster:/cluster
       - /var/run/docker.sock:/var/run/docker.sock

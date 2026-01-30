@@ -28,38 +28,38 @@ services:
     image: ghcr.io/musclepr/asaui:latest
     build:
       context: .
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/asaui}
     restart: unless-stopped
     env_file: .env
+    environment:
+      - "TZ=Asia/Tokyo"
+      - "PUID=1000"
+      - "PGID=1000"
+      - "DOCKER_GID=999"
+      - "NEXTAUTH_URL=http://localhost:8080${NEXT_PUBLIC_BASE_PATH:-/asaui}"
     volumes:
       - ./cluster:/cluster
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8080:3000"
+
 ```
 
 `.env` に以下の設定が必要です。
 
 ```bash
-ASAUI_PASSWORD=your_password
-NEXTAUTH_SECRET=your_random_secret_string
-NEXTAUTH_URL=http://localhost:8080
-
-# 管理対象コンテナ名（スペース/カンマ区切り、() で囲ってもOK）
-ARK_SERVERS="asa_main asa_sub1"
-SRV_asa_main_MAP=TheIsland_WP
-SRV_asa_sub1_MAP=Extinction_WP
-
-# Cluster Settings
-ASAUI_CLUSTER_DIR=/cluster
-
-# CurseForge (optional)
-# MOD ID から情報を取得するために必要です
-# https://console.curseforge.com/ から取得可能
+ASAUI_PASSWORD=your_secure_password
+ASAUI_SIMPLE_PASSWORD=your_simple_password
+NEXT_PUBLIC_BASE_PATH=/asaui
+NEXTAUTH_SECRET=YourOriginalPrivateSecretSign
+# https://docs.curseforge.com/rest-api/#authentication
 CURSEFORGE_API_KEY=
-#CURSEFORGE_API_BASE_URL=https://api.curseforge.com
+```
 
-# セキュリティ注意: 
-# パスワードやMOD設定等には # ' " や改行等の記号は使用できません（.env 破壊防止のため）。
+.env ファイルを作成したら、NEXTAUTH_SECRET を生成しておきましょう。
+```bash
+sed -E "s/^NEXTAUTH_SECRET=.*/NEXTAUTH_SECRET=$(openssl rand -base64 32)/" -i .env
 ```
 
 ### cluster の設定ファイル

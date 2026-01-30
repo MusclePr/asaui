@@ -10,9 +10,9 @@ services:
       - ./.cluster
       - ./.main
     environment:
-      SERVER_PORT: "${ASA_main_SERVER_PORT}"
-      QUERY_PORT: "${ASA_main_QUERY_PORT}"
-      SLAVE_PORTS: "${ASA_sub1_SERVER_PORT}"
+      - "SERVER_PORT=${ASA_main_SERVER_PORT}"
+      - "QUERY_PORT=${ASA_main_QUERY_PORT}"
+      - "SLAVE_PORTS=${ASA_sub1_SERVER_PORT}"
     volumes:
       - ${HOST_CLUSTER_DIR:-.}/server:/opt/arkserver
       - ${HOST_CLUSTER_DIR:-.}/backups:/var/backups
@@ -32,9 +32,9 @@ services:
       - ./.cluster
       - ./.sub1
     environment:
-      SERVER_PORT: "${ASA_sub1_SERVER_PORT}"
-      QUERY_PORT: "${ASA_sub1_QUERY_PORT}"
-      LOG_FILE: "ShooterGame_sub1.log"
+      - "SERVER_PORT=${ASA_sub1_SERVER_PORT}"
+      - "QUERY_PORT=${ASA_sub1_QUERY_PORT}"
+      - "LOG_FILE=ShooterGame_sub1.log"
     volumes:
       - ${HOST_CLUSTER_DIR:-.}/server:/opt/arkserver
       - ${HOST_CLUSTER_DIR:-.}/backups:/var/backups:ro # restore only
@@ -42,3 +42,11 @@ services:
       - "${ASA_sub1_SERVER_PORT}:${ASA_sub1_SERVER_PORT}/udp"
       - "${ASA_sub1_QUERY_PORT}:${ASA_sub1_QUERY_PORT}/udp"
     stop_grace_period: 120s
+
+  asa_config:
+    container_name: asa_config
+    image: busybox
+    init: true
+    command: httpd -vfh /web
+    volumes:
+      - ${HOST_CLUSTER_DIR:-.}/web:/web:ro
