@@ -1,5 +1,0 @@
-# sub1 default env
-# NOTE: asaui will read this and .sub1 directly in compose.yml.
-
-SESSION_NAME="ASA_Docker sub1"
-SERVER_MAP=Extinction_WP

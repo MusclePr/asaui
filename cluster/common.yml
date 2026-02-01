@@ -1,0 +1,11 @@
+services:
+  asa:
+    image: ghcr.io/musclepr/ark_ascended_docker:latest
+    stop_grace_period: 120s
+    restart: on-failure
+    tty: true
+    env_file:
+      - ./default.cluster
+      - ./.cluster
+    volumes:
+      - ${HOST_CLUSTER_DIR:-.}/server:/opt/arkserver
