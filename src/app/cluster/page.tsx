@@ -232,7 +232,7 @@ export default function ClusterSettingsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to save");
-      setMessage("保存しました（.env.effective を再生成済み）");
+      setMessage("保存しました");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
