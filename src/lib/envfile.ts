@@ -16,7 +16,10 @@ export function parseEnvText(text: string): EnvMap {
     if (eq <= 0) continue;
 
     const key = line.slice(0, eq).trim();
-    const value = line.slice(eq + 1);
+    let value = line.slice(eq + 1);
+    if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
     if (!key) continue;
     map[key] = value;
   }
@@ -25,7 +28,15 @@ export function parseEnvText(text: string): EnvMap {
 
 export function serializeEnv(map: EnvMap): string {
   const keys = Object.keys(map).sort();
-  return keys.map((k) => `${k}=${map[k] ?? ""}`).join("\n") + "\n";
+  return (
+    keys
+      .map((k) => {
+        const v = map[k] ?? "";
+        const needsQuotes = v.includes(" ") || v.includes("#");
+        return `${k}=${needsQuotes ? `"${v}"` : v}`;
+      })
+      .join("\n") + "\n"
+  );
 }
 
 export function readEnvFile(filePath: string): EnvMap {
