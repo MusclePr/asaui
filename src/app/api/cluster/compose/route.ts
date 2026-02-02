@@ -5,8 +5,6 @@ import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import {
   CLUSTER_COMPOSE_FILE,
   CLUSTER_DIR,
-  CLUSTER_ENV_DEFAULT_FILE,
-  CLUSTER_ENV_OVERRIDE_FILE,
 } from "@/lib/cluster";
 import { parseEnvText, serializeEnv } from "@/lib/envfile";
 import { runDockerCompose } from "@/lib/compose";

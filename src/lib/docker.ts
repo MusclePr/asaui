@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ContainerStatus } from '@/types';
-import { getServers } from './config';
+import { getServers, ARK_SAVE_BASE_DIR } from './config';
 import { getMapDisplayName } from './maps';
 import { getPlayerProfiles } from './storage';
 import { SIGNAL_DIR } from './cluster';
@@ -72,6 +72,9 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         }
       }
 
+      const onlineEosIds = onlinePlayers?.map(p => p.eosId) || [];
+      const offlinePlayers = await getOfflinePlayers(server.map, onlineEosIds);
+
       return {
         id: container.Id,
         name: server.containerName,
@@ -82,12 +85,14 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         isStopping,
         detailedState,
         onlinePlayers,
+        offlinePlayers,
         map: getMapDisplayName(server.map),
         mapRaw: server.map,
         sessionName: server.sessionName,
         isManaged: true
       };
     } else {
+      const offlinePlayers = await getOfflinePlayers(server.map, []);
       return {
         id: server.id, // Use service ID as fallback
         name: server.containerName,
@@ -95,6 +100,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         state: "not_created",
         status: "Not created",
         detailedState,
+        offlinePlayers,
         map: getMapDisplayName(server.map),
         mapRaw: server.map,
         sessionName: server.sessionName,
@@ -110,6 +116,37 @@ export async function manageContainer(id: string, action: string) {
     case "start": await container.start(); break;
     case "stop": await container.stop(); break;
     case "restart": await container.restart(); break;
+  }
+}
+
+export async function getOfflinePlayers(mapRaw: string, onlineEosIds: string[]): Promise<{ name: string; eosId: string; lastLogin: string }[]> {
+  const saveDir = path.join(ARK_SAVE_BASE_DIR, mapRaw);
+  if (!fs.existsSync(saveDir)) return [];
+
+  try {
+    const files = fs.readdirSync(saveDir);
+    const profileFiles = files.filter(f => f.endsWith(".arkprofile"));
+    const profiles = getPlayerProfiles();
+    const offlinePlayers: { name: string; eosId: string; lastLogin: string }[] = [];
+
+    for (const file of profileFiles) {
+      const eosId = file.replace(".arkprofile", "");
+      if (onlineEosIds.includes(eosId)) continue;
+
+      const filePath = path.join(saveDir, file);
+      const stats = fs.statSync(filePath);
+      const lastLogin = stats.mtime.toISOString().replace("T", " ").split(".")[0];
+      
+      const profile = profiles[eosId];
+      const name = (profile && profile.displayName) ? profile.displayName : eosId;
+
+      offlinePlayers.push({ name, eosId, lastLogin });
+    }
+
+    return offlinePlayers.sort((a, b) => new Date(b.lastLogin).getTime() - new Date(a.lastLogin).getTime());
+  } catch (e) {
+    console.warn(`Failed to get offline players for ${mapRaw}:`, e);
+    return [];
   }
 }
 

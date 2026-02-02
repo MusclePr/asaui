@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import AppLayout from "@/components/AppLayout";
-import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff } from "lucide-react";
+import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff, ShieldAlert, ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { PasswordInput } from "@/components/PasswordInput";
 import { getApiUrl } from "@/lib/utils";
+import { ASA_MAP_NAMES } from "@/lib/maps";
 
 type Settings = {
   MAX_PLAYERS: number;
@@ -17,6 +18,8 @@ type Settings = {
   ARK_EXTRA_OPTS: string;
   ARK_EXTRA_DASH_OPTS: string;
 };
+
+type EnvConfig = Record<string, string>;
 
 type Defaults = Settings;
 
@@ -44,9 +47,13 @@ export default function ClusterSettingsPage() {
   const isAdmin = session?.user?.role === "admin";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [needsApply, setNeedsApply] = useState(false);
+  const [simpleMode, setSimpleMode] = useState(true);
 
+  // Common Settings (formerly .cluster, now .common.env)
   const [settings, setSettings] = useState<Settings>({
     MAX_PLAYERS: 10,
     SERVER_PASSWORD: "",
@@ -69,29 +76,32 @@ export default function ClusterSettingsPage() {
     ARK_EXTRA_DASH_OPTS: "",
   });
 
+  // Cluster/Infra Settings (.env)
+  const [envConfig, setEnvConfig] = useState<EnvConfig>({});
+
   const [allModIds, setAllModIds] = useState<string[]>([]);
   const [enabledModIds, setEnabledModIds] = useState<string[]>([]);
   const [modInfo, setModInfo] = useState<Record<string, ModInfo>>({});
   const [newModId, setNewModId] = useState("");
 
   const modsCsv = useMemo(() => {
-    // MODS should follow the order in ALL_MODS but only include enabled ones
     return allModIds.filter((id) => enabledModIds.includes(id)).join(",");
   }, [allModIds, enabledModIds]);
 
   const allModsCsv = useMemo(() => joinModsCsv(allModIds), [allModIds]);
 
-  const fetchSettings = async () => {
+  const fetchAllData = async () => {
     setLoading(true);
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(getApiUrl("/api/cluster/env"), { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to load settings");
+      // 1. Common Settings
+      const resEnv = await fetch(getApiUrl("/api/cluster/env"), { cache: "no-store" });
+      const dataEnv = await resEnv.json();
+      if (!resEnv.ok) throw new Error(dataEnv?.error || "共通設定の読み込みに失敗しました");
 
-      const s: Partial<Settings> = data?.settings || {};
-      const d: Partial<Defaults> = data?.defaults || {};
+      const s: Partial<Settings> = dataEnv?.settings || {};
+      const d: Partial<Defaults> = dataEnv?.defaults || {};
       const resolvedDefaults: Defaults = {
         MAX_PLAYERS: Number.isFinite(d.MAX_PLAYERS) ? Number(d.MAX_PLAYERS) : 10,
         SERVER_PASSWORD: d.SERVER_PASSWORD ?? "",
@@ -118,11 +128,15 @@ export default function ClusterSettingsPage() {
 
       const loadedAll = parseModsCsv(merged.ALL_MODS);
       const loadedEnabled = parseModsCsv(merged.MODS);
-
-      // Gracefully handle legacy or manual edits
-      const mergedAll = Array.from(new Set([...loadedAll, ...loadedEnabled]));
-      setAllModIds(mergedAll);
+      setAllModIds(Array.from(new Set([...loadedAll, ...loadedEnabled])));
       setEnabledModIds(loadedEnabled);
+
+      // 2. Infra/Server Settings (.env)
+      const resConfig = await fetch(getApiUrl("/api/cluster/config"), { cache: "no-store" });
+      const dataConfig = await resConfig.json();
+      if (!resConfig.ok) throw new Error(dataConfig?.error || "インフラ設定の読み込みに失敗しました");
+      setEnvConfig(dataConfig.env || {});
+
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -130,31 +144,8 @@ export default function ClusterSettingsPage() {
     }
   };
 
-  const fetchModInfo = async (id: string) => {
-    if (modInfo[id]) return;
-    try {
-      const res = await fetch(getApiUrl(`/api/curseforge/mod/${id}`), { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "lookup failed");
-      setModInfo((prev) => ({
-        ...prev,
-        [id]: {
-          id,
-          name: data?.name,
-          url: data?.url,
-        },
-      }));
-    } catch {
-      setModInfo((prev) => ({
-        ...prev,
-        [id]: { id },
-      }));
-    }
-  };
-
   useEffect(() => {
-    fetchSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchAllData();
   }, []);
 
   useEffect(() => {
@@ -205,11 +196,22 @@ export default function ClusterSettingsPage() {
     if (e1) return e1;
     const e2 = validateExtra(settings.ARK_EXTRA_DASH_OPTS, "ARK_EXTRA_DASH_OPTS");
     if (e2) return e2;
+
+    // Validate map duplication
+    const maps = new Set<string>();
+    for (let i = 0; i < 10; i++) {
+      const map = envConfig[`ASA${i}_SERVER_MAP`];
+      if (map) {
+        if (maps.has(map)) return `マップ「${map}」が重複しています。`;
+        maps.add(map);
+      }
+    }
+
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings, modsCsv, allModsCsv]);
+  }, [settings, modsCsv, allModsCsv, envConfig]);
 
-  const save = async () => {
+  const saveAll = async () => {
     setError(null);
     setMessage(null);
     const v = clientValidationError;
@@ -220,23 +222,94 @@ export default function ClusterSettingsPage() {
 
     setSaving(true);
     try {
-      const body: Settings = {
+      // 1. Save Common Settings
+      const commonBody: Settings = {
         ...settings,
         MODS: modsCsv,
         ALL_MODS: allModsCsv,
       };
-      const res = await fetch(getApiUrl("/api/cluster/env"), {
+      const resEnv = await fetch(getApiUrl("/api/cluster/env"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(commonBody),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to save");
-      setMessage("保存しました");
+      if (!resEnv.ok) {
+        const data = await resEnv.json();
+        throw new Error(data?.error || "共通設定の保存に失敗しました");
+      }
+
+      // 2. Save Infra Settings
+      const resConfig = await fetch(getApiUrl("/api/cluster/config"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: envConfig }),
+      });
+      const dataConfig = await resConfig.json();
+      if (!resConfig.ok) {
+        throw new Error(dataConfig?.error || "インフラ設定の保存に失敗しました");
+      }
+      // Update local state with normalized values from server (e.g. ASA_SLAVE_PORTS)
+      if (dataConfig.env) {
+        setEnvConfig(dataConfig.env);
+      }
+
+      setMessage("設定を保存しました。反映させるには「変更を適用」をクリックしてください。");
+      setNeedsApply(true);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const applyChanges = async () => {
+    if (!confirm("クラスター全体を再起動して設定を適用しますか？")) return;
+    setApplying(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(getApiUrl("/api/cluster/compose"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "up" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "適応に失敗しました");
+      setMessage("設定を適応しました（クラスターを起動/再起動しました）");
+      setNeedsApply(false);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const updateEnv = (key: string, value: string | boolean) => {
+    setEnvConfig((prev) => ({
+      ...prev,
+      [key]: value === true ? "true" : value === false ? "false" : value,
+    }));
+  };
+
+  const fetchModInfo = async (id: string) => {
+    if (modInfo[id]) return;
+    try {
+      const res = await fetch(getApiUrl(`/api/curseforge/mod/${id}`), { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "lookup failed");
+      setModInfo((prev) => ({
+        ...prev,
+        [id]: {
+          id,
+          name: data?.name,
+          url: data?.url,
+        },
+      }));
+    } catch {
+      setModInfo((prev) => ({
+        ...prev,
+        [id]: { id },
+      }));
     }
   };
 
@@ -314,17 +387,20 @@ export default function ClusterSettingsPage() {
     <AppLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-3xl font-bold tracking-tight">クラスタ設定</h2>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-3xl font-bold tracking-tight">設定</h2>
+            <p className="text-sm text-muted-foreground">クラスターおよびサーバーの構成設定</p>
+          </div>
           <div className="flex gap-2">
             <button
-              onClick={fetchSettings}
+              onClick={fetchAllData}
               className="px-4 py-2 bg-secondary text-secondary-foreground rounded text-sm hover:bg-secondary/80 flex items-center gap-2"
               disabled={loading}
             >
               <RefreshCcw className="h-4 w-4" /> 再読込
             </button>
             <button
-              onClick={save}
+              onClick={saveAll}
               className="px-4 py-2 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 flex items-center gap-2"
               disabled={saving || loading}
             >
@@ -333,343 +409,495 @@ export default function ClusterSettingsPage() {
           </div>
         </div>
 
+        {needsApply && (
+          <div className="p-4 bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-orange-800 dark:text-orange-200">
+              <ShieldAlert className="h-5 w-5" />
+              <div>
+                <p className="font-semibold">未適応の変更があります</p>
+                <p className="text-sm opacity-90">保存した設定を有効にするには、クラスターを再起動（一括起動）する必要があります。</p>
+              </div>
+            </div>
+            <button
+              onClick={applyChanges}
+              disabled={applying}
+              className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 text-sm font-bold flex items-center gap-2 shadow-sm"
+            >
+              変更を適用 (再起動)
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div>Loading...</div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-6 pb-12">
             {(error || message) && (
               <div
-                className={`p-4 border rounded ${error ? "border-destructive text-destructive" : "border-green-500 text-green-600"}`}
+                className={`p-4 border rounded ${error ? "border-destructive text-destructive bg-destructive/10" : "border-green-500 text-green-600 bg-green-50"}`}
               >
                 {error || message}
               </div>
             )}
 
-            <div className="p-6 bg-card border rounded-lg space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <h3 className="text-lg font-semibold">MAX_PLAYERS</h3>
-                <button
-                  onClick={resetMaxPlayers}
-                  className="px-3 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm"
-                  type="button"
-                >
-                  デフォルトに戻す
-                </button>
-              </div>
-              <div className="flex items-center gap-4">
-                <input
-                  type="range"
-                  min={1}
-                  max={100}
-                  value={settings.MAX_PLAYERS}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      MAX_PLAYERS: Number(e.target.value),
-                    }))
-                  }
-                  className="flex-1"
-                />
-                <div className="w-16 text-right font-mono">{settings.MAX_PLAYERS}</div>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                デフォルト: <span className="font-mono">{defaults.MAX_PLAYERS}</span>
-              </div>
-            </div>
+            {/* クラスタ設定 (.env) */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold border-l-4 border-primary pl-3">クラスタ設定</h3>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div className="p-4 bg-card border rounded-lg space-y-3">
+                  <label className="text-sm font-semibold">クラスタ名 (プレフィックス)</label>
+                  <input
+                    type="text"
+                    value={envConfig.ASA_SESSION_PREFIX || ""}
+                    onChange={(e) => updateEnv("ASA_SESSION_PREFIX", e.target.value)}
+                    className="w-full px-3 py-2 border rounded bg-background"
+                    placeholder="TEST - "
+                  />
+                  <p className="text-xs text-muted-foreground">セッション名の冒頭に付与されます</p>
+                </div>
 
-            {isAdmin && (
-              <div className="p-6 bg-card border rounded-lg space-y-4">
-                <h3 className="text-lg font-semibold">パスワード</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-sm font-medium">SERVER_PASSWORD</label>
-                      <button
-                        onClick={() => resetStringField("SERVER_PASSWORD")}
-                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                        type="button"
-                      >
-                        デフォルトに戻す
-                      </button>
-                    </div>
-                    <PasswordInput
-                      value={settings.SERVER_PASSWORD}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          SERVER_PASSWORD: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border rounded bg-background"
-                      maxLength={32}
-                      placeholder="（空なら未設定）"
-                    />
-                    <p className="text-xs text-muted-foreground">空白/改行/#/'/\" は禁止（.env破壊防止）</p>
-                    <p className="text-xs text-muted-foreground">
-                      デフォルト: <span className="font-mono">{defaults.SERVER_PASSWORD || "(empty)"}</span>
-                    </p>
+                <div className="p-4 bg-card border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold">定期バックアップ</label>
+                    <button
+                      onClick={() => updateEnv("ASA_AUTO_BACKUP_ENABLED", envConfig.ASA_AUTO_BACKUP_ENABLED !== "true")}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
+                    </button>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-sm font-medium">ARK_ADMIN_PASSWORD</label>
-                      <button
-                        onClick={() => resetStringField("ARK_ADMIN_PASSWORD")}
-                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                        type="button"
-                      >
-                        デフォルトに戻す
-                      </button>
-                    </div>
-                    <PasswordInput
-                      value={settings.ARK_ADMIN_PASSWORD}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          ARK_ADMIN_PASSWORD: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border rounded bg-background"
-                      maxLength={32}
-                      placeholder="（空なら未設定）"
-                    />
-                    <p className="text-xs text-muted-foreground">空白/改行/#/'/\" は禁止（.env破壊防止）</p>
-                    <p className="text-xs text-muted-foreground">
-                      デフォルト: <span className="font-mono">{defaults.ARK_ADMIN_PASSWORD || "(empty)"}</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="p-6 bg-card border rounded-lg space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <h3 className="text-lg font-semibold">MODS</h3>
-                <button
-                  onClick={resetMods}
-                  className="px-3 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm"
-                  type="button"
-                >
-                  デフォルトに戻す
-                </button>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left border-b">
-                      <th className="py-2 pr-4 w-10 text-center">状態</th>
-                      <th className="py-2 pr-4">ID</th>
-                      <th className="py-2 pr-4">名前</th>
-                      <th className="py-2">順序 / 操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allModIds.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-3 text-muted-foreground">
-                          未設定
-                        </td>
-                      </tr>
-                    ) : (
-                      allModIds.map((id, idx) => {
-                        const isEnabled = enabledModIds.includes(id);
-                        return (
-                          <tr key={id} className={`border-b ${!isEnabled ? "opacity-60 grayscale" : "bg-primary/5"}`}>
-                            <td className="py-2 pr-4 text-center">
-                              <button
-                                onClick={() => toggleMod(id)}
-                                className={isEnabled ? "text-primary hover:text-primary/70" : "text-muted-foreground hover:text-primary"}
-                                title={isEnabled ? "無効化" : "有効化"}
-                              >
-                                {isEnabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
-                              </button>
-                            </td>
-                            <td className="py-2 pr-4 font-mono">{id}</td>
-                            <td className={`py-2 pr-4 ${!isEnabled ? "line-through" : ""}`}>
-                              {modInfo[id]?.url ? (
-                                <a
-                                  className="text-primary hover:underline"
-                                  href={modInfo[id]?.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  {modInfo[id]?.name || modInfo[id]?.url}
-                                </a>
-                              ) : (
-                                modInfo[id]?.name || id
-                              )}
-                            </td>
-                            <td className="py-2 flex items-center gap-1">
-                              <button
-                                onClick={() => moveMod(id, "up")}
-                                disabled={idx === 0}
-                                className="p-1 rounded hover:bg-secondary disabled:opacity-30"
-                              >
-                                <ArrowUp className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => moveMod(id, "down")}
-                                disabled={idx === allModIds.length - 1}
-                                className="p-1 rounded hover:bg-secondary disabled:opacity-30"
-                              >
-                                <ArrowDown className="h-4 w-4" />
-                              </button>
-                              <div className="w-2" />
-                              <button
-                                onClick={() => removeMod(id)}
-                                className="px-3 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 inline-flex items-center gap-2"
-                              >
-                                <Trash2 className="h-4 w-4" /> 削除
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-
-                    <tr>
-                      <td className="py-2 pr-4" />
-                      <td className="py-2 pr-4">
-                        <input
-                          value={newModId}
-                          onChange={(e) => setNewModId(e.target.value)}
-                          placeholder="MOD ID"
-                          className="w-32 px-2 py-1 border rounded bg-background font-mono"
-                          onKeyDown={(e) => e.key === "Enter" && addMod()}
-                        />
-                      </td>
-                      <td className="py-2 pr-4 text-muted-foreground">
-                        追加すると CurseForge から名前/URL を補完します
-                      </td>
-                      <td className="py-2">
-                        <button
-                          onClick={addMod}
-                          className="px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2"
-                        >
-                          <Plus className="h-4 w-4" /> 追加
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="text-xs text-muted-foreground flex flex-col gap-1">
-                <div>
-                  保存時の内部データ (MODS): <span className="font-mono">{modsCsv || "(empty)"}</span>
-                </div>
-                <div>
-                  保存時の内部データ (ALL_MODS): <span className="font-mono">{allModsCsv || "(empty)"}</span>
-                </div>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                デフォルト: <span className="font-mono">{defaults.MODS || "(empty)"}</span>
-              </div>
-            </div>
-
-            {isAdmin && (
-              <div className="p-6 bg-card border rounded-lg space-y-4">
-                <h3 className="text-lg font-semibold">高度なオプション</h3>
-
-                <details className="border rounded p-4 bg-background">
-                  <summary className="cursor-pointer select-none font-medium">
-                    CLUSTER_ID（クリックで展開）
-                  </summary>
-                  <div className="pt-4 space-y-2">
-                    <div className="flex items-center justify-end">
-                      <button
-                        onClick={() => resetStringField("CLUSTER_ID")}
-                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                        type="button"
-                      >
-                        デフォルトに戻す
-                      </button>
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
                     <input
                       type="text"
-                      value={settings.CLUSTER_ID}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          CLUSTER_ID: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border rounded bg-background font-mono"
-                      maxLength={32}
-                      placeholder="（空なら未設定）"
+                      value={envConfig.ASA_AUTO_BACKUP_CRON_EXPRESSION || ""}
+                      onChange={(e) => updateEnv("ASA_AUTO_BACKUP_CRON_EXPRESSION", e.target.value)}
+                      disabled={envConfig.ASA_AUTO_BACKUP_ENABLED !== "true"}
+                      className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
+                        envConfig.ASA_AUTO_BACKUP_ENABLED === "true" 
+                          ? "bg-background opacity-100" 
+                          : "bg-muted opacity-50 cursor-not-allowed"
+                      }`}
                     />
-                    <p className="text-xs text-muted-foreground">クラスタ間同期（転送）の識別に必要です。</p>
-                    <p className="text-xs text-muted-foreground">空白/改行/#/'/\" は禁止（.env破壊防止）</p>
-                    <p className="text-xs text-muted-foreground">
-                      デフォルト: <span className="font-mono">{defaults.CLUSTER_ID || "(empty)"}</span>
-                    </p>
                   </div>
-                </details>
+                </div>
 
-                <details className="border rounded p-4 bg-background">
-                  <summary className="cursor-pointer select-none font-medium">
-                    ARK_EXTRA_OPTS（クリックで展開）
-                  </summary>
-                  <div className="pt-4 space-y-2">
-                    <div className="flex items-center justify-end">
-                      <button
-                        onClick={() => resetExtra("ARK_EXTRA_OPTS")}
-                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                        type="button"
-                      >
-                        デフォルトに戻す
-                      </button>
-                    </div>
-                    <textarea
-                      value={settings.ARK_EXTRA_OPTS}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          ARK_EXTRA_OPTS: e.target.value,
-                        }))
-                      }
-                      className="w-full min-h-[140px] px-3 py-2 border rounded bg-background whitespace-pre-wrap break-words"
-                      placeholder="?ServerCrosshair=true?..."
-                    />
-                    <p className="text-xs text-muted-foreground">改行/#/'/\" は禁止（.env破壊防止）</p>
-                    <p className="text-xs text-muted-foreground">
-                      デフォルト: <span className="font-mono">{defaults.ARK_EXTRA_OPTS || "(empty)"}</span>
-                    </p>
+                <div className="p-4 bg-card border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold">定期更新 (Steam/Mods)</label>
+                    <button
+                      onClick={() => updateEnv("ASA_AUTO_UPDATE_ENABLED", envConfig.ASA_AUTO_UPDATE_ENABLED !== "true")}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
+                    </button>
                   </div>
-                </details>
-
-                <details className="border rounded p-4 bg-background">
-                  <summary className="cursor-pointer select-none font-medium">
-                    ARK_EXTRA_DASH_OPTS（クリックで展開）
-                  </summary>
-                  <div className="pt-4 space-y-2">
-                    <div className="flex items-center justify-end">
-                      <button
-                        onClick={() => resetExtra("ARK_EXTRA_DASH_OPTS")}
-                        className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                        type="button"
-                      >
-                        デフォルトに戻す
-                      </button>
-                    </div>
-                    <textarea
-                      value={settings.ARK_EXTRA_DASH_OPTS}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          ARK_EXTRA_DASH_OPTS: e.target.value,
-                        }))
-                      }
-                      className="w-full min-h-[140px] px-3 py-2 border rounded bg-background whitespace-pre-wrap break-words"
-                      placeholder="-ForceAllowCaveFlyers ..."
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
+                    <input
+                      type="text"
+                      value={envConfig.ASA_AUTO_UPDATE_CRON_EXPRESSION || ""}
+                      onChange={(e) => updateEnv("ASA_AUTO_UPDATE_CRON_EXPRESSION", e.target.value)}
+                      disabled={envConfig.ASA_AUTO_UPDATE_ENABLED !== "true"}
+                      className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
+                        envConfig.ASA_AUTO_UPDATE_ENABLED === "true" 
+                          ? "bg-background opacity-100" 
+                          : "bg-muted opacity-50 cursor-not-allowed"
+                      }`}
                     />
-                    <p className="text-xs text-muted-foreground">改行/#/'/\" は禁止（.env破壊防止）</p>
-                    <p className="text-xs text-muted-foreground">
-                      デフォルト: <span className="font-mono">{defaults.ARK_EXTRA_DASH_OPTS || "(empty)"}</span>
-                    </p>
                   </div>
-                </details>
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* サーバー個別設定 */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold border-l-4 border-primary pl-3">サーバー設定</h3>
+                <button
+                  onClick={() => setSimpleMode(!simpleMode)}
+                  className="text-xs text-primary flex items-center gap-1 hover:underline"
+                >
+                  {simpleMode ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                  {simpleMode ? "詳細設定を表示" : "シンプルモード"}
+                </button>
+              </div>
+              <div className="grid gap-4">
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const mapKey = `ASA${i}_SERVER_MAP`;
+                  if (envConfig[mapKey] === undefined) return null;
+
+                  return (
+                    <div key={i} className="p-4 bg-card border rounded-lg shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-bold rounded uppercase">
+                          asa{i}
+                        </span>
+                        <span className="font-mono text-xs text-muted-foreground uppercase">
+                          {envConfig[`ASA${i}_CONTAINER_NAME`]}
+                        </span>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 items-end">
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold">マップ</label>
+                          <select
+                            value={envConfig[mapKey]}
+                            onChange={(e) => updateEnv(mapKey, e.target.value)}
+                            className="w-full px-3 py-2 border rounded bg-background text-sm"
+                          >
+                            {Object.entries(ASA_MAP_NAMES).map(([raw, display]) => (
+                              <option key={raw} value={raw}>
+                                {display} ({raw})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {!simpleMode && (
+                          <>
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold">サーバー名 (末尾)</label>
+                              <input
+                                type="text"
+                                value={envConfig[`ASA${i}_SESSION_NAME`] || ""}
+                                readOnly
+                                className="w-full px-3 py-2 border rounded bg-muted text-sm text-muted-foreground cursor-not-allowed"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold">SERVER ポート</label>
+                              <input
+                                type="text"
+                                value={envConfig[`ASA${i}_SERVER_PORT`] || ""}
+                                readOnly
+                                className="w-full px-3 py-2 border rounded bg-muted text-sm text-muted-foreground cursor-not-allowed"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold">QUERY ポート</label>
+                              <input
+                                type="text"
+                                value={envConfig[`ASA${i}_QUERY_PORT`] || ""}
+                                readOnly
+                                className="w-full px-3 py-2 border rounded bg-muted text-sm text-muted-foreground cursor-not-allowed"
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 共通サーバー設定 */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold border-l-4 border-primary pl-3">サーバー共通設定</h3>
+              
+              <div className="p-6 bg-card border rounded-lg space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <h4 className="text-lg font-semibold flex items-center gap-2">
+                      プレイヤー上限 <span className="text-xs font-normal text-muted-foreground">(MAX_PLAYERS)</span>
+                    </h4>
+                    <button
+                      onClick={resetMaxPlayers}
+                      className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                      type="button"
+                    >
+                      デフォルトに戻す
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min={1}
+                      max={100}
+                      value={settings.MAX_PLAYERS}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          MAX_PLAYERS: Number(e.target.value),
+                        }))
+                      }
+                      className="flex-1"
+                    />
+                    <div className="w-16 text-right font-mono font-bold text-primary">{settings.MAX_PLAYERS}</div>
+                  </div>
+                </div>
+
+                {isAdmin && (
+                  <div className="space-y-4 border-t pt-6">
+                    <h4 className="text-lg font-semibold">パスワード</h4>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-sm font-medium">参加パスワード <span className="text-xs text-muted-foreground font-normal">(SERVER_PASSWORD)</span></label>
+                          <button
+                            onClick={() => resetStringField("SERVER_PASSWORD")}
+                            className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                            type="button"
+                          >
+                            デフォルトに戻す
+                          </button>
+                        </div>
+                        <PasswordInput
+                          value={settings.SERVER_PASSWORD}
+                          onChange={(e) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              SERVER_PASSWORD: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 border rounded bg-background text-sm"
+                          maxLength={32}
+                          placeholder="（空なら未設定）"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-sm font-medium">管理者パスワード <span className="text-xs text-muted-foreground font-normal">(ARK_ADMIN_PASSWORD)</span></label>
+                          <button
+                            onClick={() => resetStringField("ARK_ADMIN_PASSWORD")}
+                            className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                            type="button"
+                          >
+                            デフォルトに戻す
+                          </button>
+                        </div>
+                        <PasswordInput
+                          value={settings.ARK_ADMIN_PASSWORD}
+                          onChange={(e) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              ARK_ADMIN_PASSWORD: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 border rounded bg-background text-sm"
+                          maxLength={32}
+                          placeholder="（空なら未設定）"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-4 border-t pt-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <h4 className="text-lg font-semibold">MODS</h4>
+                    <button
+                      onClick={resetMods}
+                      className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                      type="button"
+                    >
+                      デフォルトに戻す
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr className="text-left border-b">
+                          <th className="py-2 pl-4 w-10 text-center">有効</th>
+                          <th className="py-2 px-4 w-32">ID</th>
+                          <th className="py-2 px-4">名前</th>
+                          <th className="py-2 px-4 w-40">順序 / 操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allModIds.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-muted-foreground italic">
+                              MODは登録されていません
+                            </td>
+                          </tr>
+                        ) : (
+                          allModIds.map((id, idx) => {
+                            const isEnabled = enabledModIds.includes(id);
+                            return (
+                              <tr key={id} className={`border-b transition-colors hover:bg-muted/30 ${!isEnabled ? "opacity-60 grayscale" : "bg-primary/5"}`}>
+                                <td className="py-2 pl-4 text-center">
+                                  <button
+                                    onClick={() => toggleMod(id)}
+                                    className={`${isEnabled ? "text-primary" : "text-muted-foreground"} hover:scale-110 transition-transform`}
+                                    title={isEnabled ? "無効化" : "有効化"}
+                                  >
+                                    {isEnabled ? <Power className="h-5 w-5" /> : <PowerOff className="h-5 w-5" />}
+                                  </button>
+                                </td>
+                                <td className="py-2 px-4 font-mono font-bold text-xs">{id}</td>
+                                <td className={`py-2 px-4 ${!isEnabled ? "line-through" : ""}`}>
+                                  {modInfo[id]?.url ? (
+                                    <a
+                                      className="text-primary hover:underline font-medium"
+                                      href={modInfo[id]?.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      {modInfo[id]?.name || "Loading..."}
+                                    </a>
+                                  ) : (
+                                    modInfo[id]?.name || id
+                                  )}
+                                </td>
+                                <td className="py-2 px-4 flex items-center gap-1">
+                                  <button
+                                    onClick={() => moveMod(id, "up")}
+                                    disabled={idx === 0}
+                                    className="p-1.5 rounded-full hover:bg-secondary disabled:opacity-20"
+                                  >
+                                    <ArrowUp className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => moveMod(id, "down")}
+                                    disabled={idx === allModIds.length - 1}
+                                    className="p-1.5 rounded-full hover:bg-secondary disabled:opacity-20"
+                                  >
+                                    <ArrowDown className="h-4 w-4" />
+                                  </button>
+                                  <div className="w-2" />
+                                  <button
+                                    onClick={() => removeMod(id)}
+                                    className="p-1.5 text-destructive hover:bg-destructive/10 rounded-full transition-colors"
+                                    title="削除"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+
+                        <tr className="bg-muted/20">
+                          <td className="py-3 px-4" colSpan={2}>
+                            <input
+                              value={newModId}
+                              onChange={(e) => setNewModId(e.target.value)}
+                              placeholder="MOD ID (数字)"
+                              className="w-full px-3 py-1.5 border rounded bg-background font-mono text-sm"
+                              onKeyDown={(e) => e.key === "Enter" && addMod()}
+                            />
+                          </td>
+                          <td className="py-3 px-4 text-xs text-muted-foreground">
+                            追加すると CurseForge から情報を自動取得します
+                          </td>
+                          <td className="py-3 px-4">
+                            <button
+                              onClick={addMod}
+                              className="w-full px-3 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center justify-center gap-2 text-sm font-bold"
+                            >
+                              <Plus className="h-4 w-4" /> 追加
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {isAdmin && (
+                  <div className="space-y-4 border-t pt-6">
+                    <h4 className="text-lg font-semibold">高度なオプション</h4>
+
+                    <div className="grid gap-4">
+                      <details className="border rounded-lg overflow-hidden bg-background group">
+                        <summary className="cursor-pointer select-none font-medium p-4 bg-muted/30 hover:bg-muted/50 transition-colors flex items-center gap-2">
+                          <span className="group-open:rotate-90 transition-transform"><ChevronRight className="h-4 w-4" /></span>
+                          CLUSTER_ID <span className="text-xs font-normal text-muted-foreground">(転送同期用ID)</span>
+                        </summary>
+                        <div className="p-4 space-y-4 border-t">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">クラスタ間同期（転送）の識別に必要です。</p>
+                            <button
+                              onClick={() => resetStringField("CLUSTER_ID")}
+                              className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                              type="button"
+                            >
+                              デフォルトに戻す
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={settings.CLUSTER_ID}
+                            onChange={(e) =>
+                              setSettings((prev) => ({
+                                ...prev,
+                                CLUSTER_ID: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 border rounded bg-background font-mono text-sm"
+                            maxLength={32}
+                            placeholder="（空なら未設定）"
+                          />
+                        </div>
+                      </details>
+
+                      <details className="border rounded-lg overflow-hidden bg-background group">
+                        <summary className="cursor-pointer select-none font-medium p-4 bg-muted/30 hover:bg-muted/50 transition-colors flex items-center gap-2">
+                          <span className="group-open:rotate-90 transition-transform"><ChevronRight className="h-4 w-4" /></span>
+                          起動オプション <span className="text-xs font-normal text-muted-foreground">(ARK_EXTRA_OPTS)</span>
+                        </summary>
+                        <div className="p-4 space-y-4 border-t">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">URLパラメータ形式のオプションを指定します。</p>
+                            <button
+                              onClick={() => resetExtra("ARK_EXTRA_OPTS")}
+                              className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                              type="button"
+                            >
+                              デフォルトに戻す
+                            </button>
+                          </div>
+                          <textarea
+                            value={settings.ARK_EXTRA_OPTS}
+                            onChange={(e) =>
+                              setSettings((prev) => ({
+                                ...prev,
+                                ARK_EXTRA_OPTS: e.target.value,
+                              }))
+                            }
+                            className="w-full min-h-[140px] px-3 py-2 border rounded bg-background font-mono text-xs"
+                            placeholder="?ServerCrosshair=true?..."
+                          />
+                        </div>
+                      </details>
+
+                      <details className="border rounded-lg overflow-hidden bg-background group">
+                        <summary className="cursor-pointer select-none font-medium p-4 bg-muted/30 hover:bg-muted/50 transition-colors flex items-center gap-2">
+                          <span className="group-open:rotate-90 transition-transform"><ChevronRight className="h-4 w-4" /></span>
+                          拡張コマンドオプション <span className="text-xs font-normal text-muted-foreground">(ARK_EXTRA_DASH_OPTS)</span>
+                        </summary>
+                        <div className="p-4 space-y-4 border-t">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">ハイフン形式の引数を指定します。</p>
+                            <button
+                              onClick={() => resetExtra("ARK_EXTRA_DASH_OPTS")}
+                              className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                              type="button"
+                            >
+                              デフォルトに戻す
+                            </button>
+                          </div>
+                          <textarea
+                            value={settings.ARK_EXTRA_DASH_OPTS}
+                            onChange={(e) =>
+                              setSettings((prev) => ({
+                                ...prev,
+                                ARK_EXTRA_DASH_OPTS: e.target.value,
+                              }))
+                            }
+                            className="w-full min-h-[140px] px-3 py-2 border rounded bg-background font-mono text-xs"
+                            placeholder="-ForceAllowCaveFlyers ..."
+                          />
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

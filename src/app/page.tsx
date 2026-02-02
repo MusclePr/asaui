@@ -377,7 +377,7 @@ export default function Dashboard() {
                     <p className="text-muted-foreground font-medium">接続中のプレイヤー ({c.onlinePlayers.length})</p>
                     <div className="flex flex-wrap gap-1">
                       {c.onlinePlayers.map((player, idx) => (
-                        <div key={idx} className="bg-background/50 pl-1.5 pr-0.5 py-0.5 rounded border border-secondary/50 flex items-center gap-1 group">
+                        <div key={idx} className="bg-background/50 pl-1.5 pr-0.5 py-0.5 rounded border border-secondary/50 flex items-center gap-1 group" title={player.eosId}>
                           <span>{player.name}</span>
                           <button
                             onClick={() => handleKick(c.name, player.eosId, player.name)}
@@ -388,6 +388,27 @@ export default function Dashboard() {
                           </button>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {c.offlinePlayers && c.offlinePlayers.length > 0 && (
+                  <div className="bg-secondary/10 p-2 rounded text-xs space-y-1">
+                    <p className="text-muted-foreground font-medium flex justify-between">
+                      <span>保存済みのプレイヤー ({c.offlinePlayers.length})</span>
+                      <span className="text-[10px]">最近の10名を表示</span>
+                    </p>
+                    <div className="flex flex-wrap gap-1 opacity-80">
+                      {c.offlinePlayers.slice(0, 10).map((player, idx) => (
+                        <div key={idx} className="bg-background/30 px-1.5 py-0.5 rounded border border-secondary/20" title={`EOS ID: ${player.eosId}\n最終ログイン: ${player.lastLogin}`}>
+                          {player.name}
+                        </div>
+                      ))}
+                      {c.offlinePlayers.length > 10 && (
+                        <div className="px-1.5 py-0.5 text-muted-foreground italic">
+                          ...他 {c.offlinePlayers.length - 10} 名
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

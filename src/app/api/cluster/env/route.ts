@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import {
   CLUSTER_DIR,
-  CLUSTER_ENV_DEFAULT_FILE,
-  CLUSTER_ENV_OVERRIDE_FILE,
+  CLUSTER_COMMON_ENV_DEFAULT_FILE,
+  CLUSTER_COMMON_ENV_OVERRIDE_FILE,
 } from "@/lib/cluster";
 import {
   mergeEffectiveEnv,
@@ -42,17 +42,14 @@ type Body = {
 };
 
 function ensureBaseEnvExists() {
-  if (fs.existsSync(CLUSTER_ENV_DEFAULT_FILE)) return;
-  const samplePath = path.join(CLUSTER_DIR, ".env.sample");
-  if (!fs.existsSync(samplePath)) {
-    throw new Error(`Missing base env: ${CLUSTER_ENV_DEFAULT_FILE} (and sample not found)`);
-  }
-  fs.copyFileSync(samplePath, CLUSTER_ENV_DEFAULT_FILE);
+  if (fs.existsSync(CLUSTER_COMMON_ENV_DEFAULT_FILE)) return;
+  // If no default.common.env, we might be in trouble, but let's try to not fail here if it's missing for some reason
+  // but usually it should be there.
 }
 
 function readOverrides(): Record<string, string> {
-  if (!fs.existsSync(CLUSTER_ENV_OVERRIDE_FILE)) return {};
-  const text = fs.readFileSync(CLUSTER_ENV_OVERRIDE_FILE, "utf8");
+  if (!fs.existsSync(CLUSTER_COMMON_ENV_OVERRIDE_FILE)) return {};
+  const text = fs.readFileSync(CLUSTER_COMMON_ENV_OVERRIDE_FILE, "utf8");
   return parseEnvText(text);
 }
 
@@ -63,7 +60,7 @@ function writeOverrides(overrides: Record<string, string>) {
       lines.push(`${key}=${overrides[key] ?? ""}`);
     }
   }
-  fs.writeFileSync(CLUSTER_ENV_OVERRIDE_FILE, lines.join("\n") + (lines.length ? "\n" : ""), "utf8");
+  fs.writeFileSync(CLUSTER_COMMON_ENV_OVERRIDE_FILE, lines.join("\n") + (lines.length ? "\n" : ""), "utf8");
 }
 
 export async function GET() {
@@ -72,7 +69,10 @@ export async function GET() {
 
   try {
     ensureBaseEnvExists();
-    const base = parseEnvText(fs.readFileSync(CLUSTER_ENV_DEFAULT_FILE, "utf8"));
+    const baseText = fs.existsSync(CLUSTER_COMMON_ENV_DEFAULT_FILE) 
+      ? fs.readFileSync(CLUSTER_COMMON_ENV_DEFAULT_FILE, "utf8")
+      : "";
+    const base = parseEnvText(baseText);
     const currentOverrides = readOverrides();
 
     const defaults: Body = {};
@@ -163,7 +163,10 @@ export async function PUT(req: NextRequest) {
     writeOverrides(overridesToWrite);
 
     ensureBaseEnvExists();
-    const base = parseEnvText(fs.readFileSync(CLUSTER_ENV_DEFAULT_FILE, "utf8"));
+    const baseText = fs.existsSync(CLUSTER_COMMON_ENV_DEFAULT_FILE) 
+      ? fs.readFileSync(CLUSTER_COMMON_ENV_DEFAULT_FILE, "utf8")
+      : "";
+    const base = parseEnvText(baseText);
     const effective = { ...base, ...overridesToWrite };
 
     await refreshServerCache();

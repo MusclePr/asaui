@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 
 export type EnvMap = Record<string, string>;
 
@@ -108,6 +110,56 @@ export function validateAllModsCsv(value: unknown): { ok: boolean; value?: strin
     return { ok: false, error: "ALL_MODS は数字IDをカンマ区切りで指定してください" };
   }
   return { ok: true, value };
+}
+
+export function validateCronWithSupercronic(value: string): { ok: boolean; error?: string } {
+  if (!value) return { ok: false, error: "Cron 式を入力してください" };
+
+  const tmpFile = path.join("/tmp", `crontab-${Date.now()}`);
+  try {
+    fs.writeFileSync(tmpFile, `${value} true\n`, "utf8");
+    execFileSync("supercronic", ["--no-reap", "-test", tmpFile]);
+    return { ok: true };
+  } catch (e: any) {
+    if (e.code === "ENOENT") {
+      console.warn("supercronic not found, skipping cron validation");
+      return { ok: true };
+    }
+    const msg = e?.stderr?.toString() || e?.stdout?.toString() || String(e);
+    return { ok: false, error: `無効な Cron 式です: ${msg}` };
+  } finally {
+    if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+  }
+}
+
+export function calculateSlavePorts(env: EnvMap): string {
+  const ports: string[] = [];
+  for (let i = 1; i < 10; i++) {
+    const map = env[`ASA${i}_SERVER_MAP`];
+    const port = env[`ASA${i}_SERVER_PORT`];
+    if (map && port) {
+      ports.push(port);
+    }
+  }
+  return ports.join(",");
+}
+
+export const CLUSTER_CONFIG_KEYS = [
+  "ASA_SESSION_PREFIX",
+  "ASA_AUTO_BACKUP_ENABLED",
+  "ASA_AUTO_BACKUP_CRON_EXPRESSION",
+  "ASA_AUTO_UPDATE_ENABLED",
+  "ASA_AUTO_UPDATE_CRON_EXPRESSION",
+] as const;
+
+export function getAsaServerKeys(index: number) {
+  return {
+    MAP: `ASA${index}_SERVER_MAP`,
+    NAME: `ASA${index}_SESSION_NAME`,
+    PORT: `ASA${index}_SERVER_PORT`,
+    QUERY: `ASA${index}_QUERY_PORT`,
+    CONTAINER: `ASA${index}_CONTAINER_NAME`,
+  } as const;
 }
 
 export function validateExtra(value: unknown, label: string): { ok: boolean; value?: string; error?: string } {

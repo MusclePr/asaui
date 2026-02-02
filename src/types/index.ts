@@ -12,6 +12,7 @@ export interface ContainerStatus {
   sessionName?: string;
   isManaged?: boolean; // Whether it's an ARK server we manage
   onlinePlayers?: { name: string; eosId: string }[]; // List of currently connected players
+  offlinePlayers?: { name: string; eosId: string; lastLogin: string }[]; // List of players with save data but not online
 }
 
 export interface PlayerInfo {
