@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import AppLayout from "@/components/AppLayout";
-import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff, ShieldAlert, ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff, ShieldAlert, ChevronDown, ChevronRight, Eye, EyeOff, Zap, Settings2, Info } from "lucide-react";
 import { PasswordInput } from "@/components/PasswordInput";
 import { getApiUrl } from "@/lib/utils";
 import { ASA_MAP_NAMES } from "@/lib/maps";
@@ -20,6 +20,22 @@ type Settings = {
 };
 
 type EnvConfig = Record<string, string>;
+
+type DynamicConfig = Record<string, string>;
+
+const DYNAMIC_CONFIG_DESCRIPTIONS: Record<string, string> = {
+  BabyCuddleIntervalMultiplier: '赤ちゃんのケア（刷り込み）の間隔を調整します。値が小さいほど間隔が短くなります。',
+  BabyImprintAmountMultiplier: '1回のケアで上昇する刷り込み値の倍率を調整します。',
+  BabyMatureSpeedMultiplier: '赤ちゃんの成長速度を調整します。値が大きいほど早く成長します。',
+  DynamicColorset: '使用する動的なカラーセットを指定します。',
+  DynamicColorsetChanceOverride: '動的なカラーセットが適用される確率をオーバーライドします。',
+  EggHatchSpeedMultiplier: '卵の孵化速度を調整します。値が大きいほど早く孵化します。',
+  HarvestAmountMultiplier: '資源の採取量を調整します。',
+  HexagonRewardMultiplier: 'ヘキサゴン報酬の倍率を調整します。',
+  MatingIntervalMultiplier: '交配の間隔を調整します。値が小さいほど次に交配できるようになるまでの時間が短くなります。',
+  XPMultiplier: '獲得経験値の倍率を調整します。',
+  TamingSpeedMultiplier: 'テイム速度の倍率を調整します。',
+};
 
 type Defaults = Settings;
 
@@ -52,6 +68,7 @@ export default function ClusterSettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [needsApply, setNeedsApply] = useState(false);
   const [simpleMode, setSimpleMode] = useState(true);
+  const [activeTab, setActiveTab] = useState<"static" | "dynamic">("static");
 
   // Common Settings (formerly .cluster, now .common.env)
   const [settings, setSettings] = useState<Settings>({
@@ -78,6 +95,11 @@ export default function ClusterSettingsPage() {
 
   // Cluster/Infra Settings (.env)
   const [envConfig, setEnvConfig] = useState<EnvConfig>({});
+
+  // Dynamic Settings (dynamicconfig.ini)
+  const [dynamicConfig, setDynamicConfig] = useState<DynamicConfig>({});
+  const [originalDynamicConfig, setOriginalDynamicConfig] = useState<DynamicConfig>({});
+  const [savingDynamic, setSavingDynamic] = useState(false);
 
   const [allModIds, setAllModIds] = useState<string[]>([]);
   const [enabledModIds, setEnabledModIds] = useState<string[]>([]);
@@ -136,6 +158,14 @@ export default function ClusterSettingsPage() {
       const dataConfig = await resConfig.json();
       if (!resConfig.ok) throw new Error(dataConfig?.error || "インフラ設定の読み込みに失敗しました");
       setEnvConfig(dataConfig.env || {});
+
+      // 3. Dynamic Config (dynamicconfig.ini)
+      const resDynamic = await fetch(getApiUrl("/api/cluster/dynamic"), { cache: "no-store" });
+      const dataDynamic = await resDynamic.json();
+      if (resDynamic.ok) {
+        setDynamicConfig(dataDynamic);
+        setOriginalDynamicConfig(dataDynamic);
+      }
 
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -259,6 +289,28 @@ export default function ClusterSettingsPage() {
       setError(e?.message || String(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveDynamic = async () => {
+    setError(null);
+    setMessage(null);
+    setSavingDynamic(true);
+    try {
+      const res = await fetch(getApiUrl("/api/cluster/dynamic"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dynamicConfig),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "動的設定の保存に失敗しました");
+      
+      setOriginalDynamicConfig(dynamicConfig);
+      setMessage(data.message || "動的設定を保存し、各サーバーへの反映リクエストを送信しました。");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setSavingDynamic(false);
     }
   };
 
@@ -399,17 +451,57 @@ export default function ClusterSettingsPage() {
             >
               <RefreshCcw className="h-4 w-4" /> 再読込
             </button>
-            <button
-              onClick={saveAll}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 flex items-center gap-2"
-              disabled={saving || loading}
-            >
-              <Save className="h-4 w-4" /> 保存
-            </button>
+            {activeTab === "static" ? (
+              <button
+                onClick={saveAll}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 flex items-center gap-2"
+                disabled={saving || loading}
+              >
+                <Save className="h-4 w-4" /> 保存
+              </button>
+            ) : (
+              <button
+                onClick={saveDynamic}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 flex items-center gap-2 shadow-lg shadow-primary/20"
+                disabled={savingDynamic || loading}
+              >
+                <Zap className="h-4 w-4" /> 保存して即時反映
+              </button>
+            )}
           </div>
         </div>
 
-        {needsApply && (
+        {/* Tab Navigation */}
+        <div className="flex border-b">
+          <button
+            onClick={() => setActiveTab("static")}
+            className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+              activeTab === "static" 
+                ? "text-primary border-b-2 border-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4" />
+              静的設定 (要再起動)
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("dynamic")}
+            className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+              activeTab === "dynamic" 
+                ? "text-primary border-b-2 border-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-amber-500" />
+              動的設定 (即時反映)
+            </div>
+          </button>
+        </div>
+
+        {needsApply && activeTab === "static" && (
           <div className="p-4 bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-orange-800 dark:text-orange-200">
               <ShieldAlert className="h-5 w-5" />
@@ -440,78 +532,80 @@ export default function ClusterSettingsPage() {
               </div>
             )}
 
-            {/* クラスタ設定 (.env) */}
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold border-l-4 border-primary pl-3">クラスタ設定</h3>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <div className="p-4 bg-card border rounded-lg space-y-3">
-                  <label className="text-sm font-semibold">クラスタ名 (プレフィックス)</label>
-                  <input
-                    type="text"
-                    value={envConfig.ASA_SESSION_PREFIX || ""}
-                    onChange={(e) => updateEnv("ASA_SESSION_PREFIX", e.target.value)}
-                    className="w-full px-3 py-2 border rounded bg-background"
-                    placeholder="TEST - "
-                  />
-                  <p className="text-xs text-muted-foreground">セッション名の冒頭に付与されます</p>
+            {activeTab === "static" ? (
+              <>
+                {/* クラスタ設定 (.env) */}
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold border-l-4 border-primary pl-3">クラスタ設定</h3>
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="p-4 bg-card border rounded-lg space-y-3">
+                      <label className="text-sm font-semibold">クラスタ名 (プレフィックス)</label>
+                      <input
+                        type="text"
+                        value={envConfig.ASA_SESSION_PREFIX || ""}
+                        onChange={(e) => updateEnv("ASA_SESSION_PREFIX", e.target.value)}
+                        className="w-full px-3 py-2 border rounded bg-background"
+                        placeholder="TEST - "
+                      />
+                      <p className="text-xs text-muted-foreground">セッション名の冒頭に付与されます</p>
+                    </div>
+
+                    <div className="p-4 bg-card border rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-semibold">定期バックアップ</label>
+                        <button
+                          onClick={() => updateEnv("ASA_AUTO_BACKUP_ENABLED", envConfig.ASA_AUTO_BACKUP_ENABLED !== "true")}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
+                        <input
+                          type="text"
+                          value={envConfig.ASA_AUTO_BACKUP_CRON_EXPRESSION || ""}
+                          onChange={(e) => updateEnv("ASA_AUTO_BACKUP_CRON_EXPRESSION", e.target.value)}
+                          disabled={envConfig.ASA_AUTO_BACKUP_ENABLED !== "true"}
+                          className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
+                            envConfig.ASA_AUTO_BACKUP_ENABLED === "true" 
+                              ? "bg-background opacity-100" 
+                              : "bg-muted opacity-50 cursor-not-allowed"
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-card border rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-semibold">定期更新 (Steam/Mods)</label>
+                        <button
+                          onClick={() => updateEnv("ASA_AUTO_UPDATE_ENABLED", envConfig.ASA_AUTO_UPDATE_ENABLED !== "true")}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
+                        <input
+                          type="text"
+                          value={envConfig.ASA_AUTO_UPDATE_CRON_EXPRESSION || ""}
+                          onChange={(e) => updateEnv("ASA_AUTO_UPDATE_CRON_EXPRESSION", e.target.value)}
+                          disabled={envConfig.ASA_AUTO_UPDATE_ENABLED !== "true"}
+                          className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
+                            envConfig.ASA_AUTO_UPDATE_ENABLED === "true" 
+                              ? "bg-background opacity-100" 
+                              : "bg-muted opacity-50 cursor-not-allowed"
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="p-4 bg-card border rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold">定期バックアップ</label>
-                    <button
-                      onClick={() => updateEnv("ASA_AUTO_BACKUP_ENABLED", envConfig.ASA_AUTO_BACKUP_ENABLED !== "true")}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
-                    </button>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
-                    <input
-                      type="text"
-                      value={envConfig.ASA_AUTO_BACKUP_CRON_EXPRESSION || ""}
-                      onChange={(e) => updateEnv("ASA_AUTO_BACKUP_CRON_EXPRESSION", e.target.value)}
-                      disabled={envConfig.ASA_AUTO_BACKUP_ENABLED !== "true"}
-                      className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
-                        envConfig.ASA_AUTO_BACKUP_ENABLED === "true" 
-                          ? "bg-background opacity-100" 
-                          : "bg-muted opacity-50 cursor-not-allowed"
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                <div className="p-4 bg-card border rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold">定期更新 (Steam/Mods)</label>
-                    <button
-                      onClick={() => updateEnv("ASA_AUTO_UPDATE_ENABLED", envConfig.ASA_AUTO_UPDATE_ENABLED !== "true")}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
-                    </button>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
-                    <input
-                      type="text"
-                      value={envConfig.ASA_AUTO_UPDATE_CRON_EXPRESSION || ""}
-                      onChange={(e) => updateEnv("ASA_AUTO_UPDATE_CRON_EXPRESSION", e.target.value)}
-                      disabled={envConfig.ASA_AUTO_UPDATE_ENABLED !== "true"}
-                      className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
-                        envConfig.ASA_AUTO_UPDATE_ENABLED === "true" 
-                          ? "bg-background opacity-100" 
-                          : "bg-muted opacity-50 cursor-not-allowed"
-                      }`}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* サーバー個別設定 */}
-            <div className="space-y-4">
+                {/* サーバー個別設定 */}
+                <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold border-l-4 border-primary pl-3">サーバー設定</h3>
                 <button
@@ -898,6 +992,102 @@ export default function ClusterSettingsPage() {
                 )}
               </div>
             </div>
+              </>
+            ) : (
+              <div className="space-y-6">
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3">
+                  <Zap className="h-5 w-5 text-amber-600 mt-0.5" />
+                  <div className="text-sm space-y-1">
+                    <p className="font-bold text-amber-800 dark:text-amber-200">動的設定（即時反映領域）</p>
+                    <p className="text-amber-700 dark:text-amber-300 opacity-90">
+                      ここでの変更は `dynamicconfig.ini` に保存され、全サーバーへ反映リクエストが送られます。
+                      <strong className="ml-1">サーバーの再起動は不要です。</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="p-6 bg-card border rounded-lg space-y-6">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      <Settings2 className="h-5 w-5" />
+                      倍率・ゲームバランス
+                    </h3>
+                    <div className="space-y-4">
+                      {Object.keys(dynamicConfig).filter(k => k.endsWith('Multiplier')).map(key => (
+                        <div key={key} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold flex items-center gap-1.5">
+                              {key}
+                              <div className="group relative">
+                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-popover text-popover-foreground text-xs rounded shadow-xl border opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                                  {DYNAMIC_CONFIG_DESCRIPTIONS[key] || "設定項目"}
+                                </div>
+                              </div>
+                            </label>
+                            {originalDynamicConfig[key] !== dynamicConfig[key] && (
+                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">変更あり</span>
+                            )}
+                          </div>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={dynamicConfig[key]}
+                            onChange={(e) => setDynamicConfig(prev => ({ ...prev, [key]: e.target.value }))}
+                            className="w-full px-3 py-2 border rounded bg-background font-mono text-sm"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-card border rounded-lg space-y-6">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      <Plus className="h-5 w-5" />
+                      その他・カラーセット
+                    </h3>
+                    <div className="space-y-4">
+                      {Object.keys(dynamicConfig).filter(k => !k.endsWith('Multiplier')).map(key => (
+                        <div key={key} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-semibold flex items-center gap-1.5">
+                              {key}
+                              <div className="group relative">
+                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-popover text-popover-foreground text-xs rounded shadow-xl border opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                                  {DYNAMIC_CONFIG_DESCRIPTIONS[key] || "設定項目"}
+                                </div>
+                              </div>
+                            </label>
+                            {originalDynamicConfig[key] !== dynamicConfig[key] && (
+                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">変更あり</span>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            value={dynamicConfig[key]}
+                            onChange={(e) => setDynamicConfig(prev => ({ ...prev, [key]: e.target.value }))}
+                            className="w-full px-3 py-2 border rounded bg-background font-mono text-sm"
+                          />
+                        </div>
+                      ))}
+                      
+                      <div className="pt-4 border-t">
+                        <a 
+                          href="https://ark.wiki.gg/wiki/Server_configuration#DynamicConfig" 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          詳細なドキュメント (Wiki) を見る
+                          <ChevronRight className="h-3 w-3" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
