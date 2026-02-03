@@ -64,8 +64,10 @@ fi
 
 usermod -aG "$DOCKER_GROUP" nextjs
 
-# Set ownership of /app to current user
-chown -R nextjs:nodejs /app
+# Ensure /cluster is writable by nextjs user
+# We only chown the directory itself to avoid recursive delay
+# /app (static files) doesn't need to be chowned recursively
+chown nextjs:nodejs /cluster 2>/dev/null || true
 
 echo "Checking permissions for /var/run/docker.sock..."
 ls -l /var/run/docker.sock

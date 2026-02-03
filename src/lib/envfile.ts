@@ -161,6 +161,7 @@ export const CLUSTER_CONFIG_KEYS = [
   "ASA_AUTO_BACKUP_CRON_EXPRESSION",
   "ASA_AUTO_UPDATE_ENABLED",
   "ASA_AUTO_UPDATE_CRON_EXPRESSION",
+  "ASA_DISCORD_WEBHOOK_URL",
 ] as const;
 
 export function getAsaServerKeys(index: number) {
@@ -170,6 +171,7 @@ export function getAsaServerKeys(index: number) {
     PORT: `ASA${index}_SERVER_PORT`,
     QUERY: `ASA${index}_QUERY_PORT`,
     CONTAINER: `ASA${index}_CONTAINER_NAME`,
+    WEBHOOK: `ASA${index}_DISCORD_WEBHOOK_URL`,
   } as const;
 }
 

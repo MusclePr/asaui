@@ -69,15 +69,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Update server settings (Map only as per request)
+    // Update server settings (Map and Webhook)
     for (let i = 0; i < 10; i++) {
       const keys = getAsaServerKeys(i);
+      // Map
       if (updates[keys.MAP] !== undefined) {
         const mapValue = String(updates[keys.MAP]);
         if (mapValue) {
           newEnv[keys.MAP] = mapValue;
         } else {
           delete newEnv[keys.MAP];
+        }
+      }
+      // Discord Webhook
+      if (updates[keys.WEBHOOK] !== undefined) {
+        const webhookValue = String(updates[keys.WEBHOOK]);
+        if (webhookValue) {
+          newEnv[keys.WEBHOOK] = webhookValue;
+        } else {
+          delete newEnv[keys.WEBHOOK];
         }
       }
     }

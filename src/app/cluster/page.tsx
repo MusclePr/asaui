@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import AppLayout from "@/components/AppLayout";
-import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff, ShieldAlert, ChevronDown, ChevronRight, Eye, EyeOff, Zap, Settings2, Info } from "lucide-react";
+import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff, ShieldAlert, ChevronDown, ChevronRight, Eye, EyeOff, Zap, Settings2, Info, Users } from "lucide-react";
 import { PasswordInput } from "@/components/PasswordInput";
 import { getApiUrl } from "@/lib/utils";
 import { ASA_MAP_NAMES } from "@/lib/maps";
+import { ContainerStatus } from "@/types";
 
 type Settings = {
   MAX_PLAYERS: number;
@@ -69,6 +70,8 @@ export default function ClusterSettingsPage() {
   const [needsApply, setNeedsApply] = useState(false);
   const [simpleMode, setSimpleMode] = useState(true);
   const [activeTab, setActiveTab] = useState<"static" | "dynamic">("static");
+
+  const [containers, setContainers] = useState<ContainerStatus[]>([]);
 
   // Common Settings (formerly .cluster, now .common.env)
   const [settings, setSettings] = useState<Settings>({
@@ -165,6 +168,15 @@ export default function ClusterSettingsPage() {
       if (resDynamic.ok) {
         setDynamicConfig(dataDynamic);
         setOriginalDynamicConfig(dataDynamic);
+      }
+
+      // 4. Container status (to check player counts)
+      const resStats = await fetch(getApiUrl("/api/containers"), { cache: "no-store" });
+      if (resStats.ok) {
+        const statsData = await resStats.json();
+        if (Array.isArray(statsData)) {
+          setContainers(statsData);
+        }
       }
 
     } catch (e: any) {
@@ -535,74 +547,88 @@ export default function ClusterSettingsPage() {
             {activeTab === "static" ? (
               <>
                 {/* クラスタ設定 (.env) */}
-                <div className="space-y-4">
-                  <h3 className="text-xl font-bold border-l-4 border-primary pl-3">クラスタ設定</h3>
-                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    <div className="p-4 bg-card border rounded-lg space-y-3">
-                      <label className="text-sm font-semibold">クラスタ名 (プレフィックス)</label>
-                      <input
-                        type="text"
-                        value={envConfig.ASA_SESSION_PREFIX || ""}
-                        onChange={(e) => updateEnv("ASA_SESSION_PREFIX", e.target.value)}
-                        className="w-full px-3 py-2 border rounded bg-background"
-                        placeholder="TEST - "
-                      />
-                      <p className="text-xs text-muted-foreground">セッション名の冒頭に付与されます</p>
-                    </div>
-
-                    <div className="p-4 bg-card border rounded-lg space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-semibold">定期バックアップ</label>
-                        <button
-                          onClick={() => updateEnv("ASA_AUTO_BACKUP_ENABLED", envConfig.ASA_AUTO_BACKUP_ENABLED !== "true")}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
-                        >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
-                        </button>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
+                {isAdmin && (
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-bold border-l-4 border-primary pl-3">クラスタ設定</h3>
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                      <div className="p-4 bg-card border rounded-lg space-y-3">
+                        <label className="text-sm font-semibold">セッション名 (プレフィックス)</label>
                         <input
                           type="text"
-                          value={envConfig.ASA_AUTO_BACKUP_CRON_EXPRESSION || ""}
-                          onChange={(e) => updateEnv("ASA_AUTO_BACKUP_CRON_EXPRESSION", e.target.value)}
-                          disabled={envConfig.ASA_AUTO_BACKUP_ENABLED !== "true"}
-                          className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
-                            envConfig.ASA_AUTO_BACKUP_ENABLED === "true" 
-                              ? "bg-background opacity-100" 
-                              : "bg-muted opacity-50 cursor-not-allowed"
-                          }`}
+                          value={envConfig.ASA_SESSION_PREFIX || ""}
+                          onChange={(e) => updateEnv("ASA_SESSION_PREFIX", e.target.value)}
+                          className="w-full px-3 py-2 border rounded bg-background"
+                          placeholder="TEST - "
                         />
+                        <p className="text-xs text-muted-foreground">セッション名の冒頭に付与されます</p>
                       </div>
-                    </div>
 
-                    <div className="p-4 bg-card border rounded-lg space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-semibold">定期更新 (Steam/Mods)</label>
-                        <button
-                          onClick={() => updateEnv("ASA_AUTO_UPDATE_ENABLED", envConfig.ASA_AUTO_UPDATE_ENABLED !== "true")}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
-                        >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
-                        </button>
+                      <div className="p-4 bg-card border rounded-lg space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-semibold">定期バックアップ</label>
+                          <button
+                            onClick={() => updateEnv("ASA_AUTO_BACKUP_ENABLED", envConfig.ASA_AUTO_BACKUP_ENABLED !== "true")}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
+                          </button>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
+                          <input
+                            type="text"
+                            value={envConfig.ASA_AUTO_BACKUP_CRON_EXPRESSION || ""}
+                            onChange={(e) => updateEnv("ASA_AUTO_BACKUP_CRON_EXPRESSION", e.target.value)}
+                            disabled={envConfig.ASA_AUTO_BACKUP_ENABLED !== "true"}
+                            className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
+                              envConfig.ASA_AUTO_BACKUP_ENABLED === "true" 
+                                ? "bg-background opacity-100" 
+                                : "bg-muted opacity-50 cursor-not-allowed"
+                            }`}
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
+
+                      <div className="p-4 bg-card border rounded-lg space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-semibold">定期更新 (Steam/Mods)</label>
+                          <button
+                            onClick={() => updateEnv("ASA_AUTO_UPDATE_ENABLED", envConfig.ASA_AUTO_UPDATE_ENABLED !== "true")}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
+                          </button>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
+                          <input
+                            type="text"
+                            value={envConfig.ASA_AUTO_UPDATE_CRON_EXPRESSION || ""}
+                            onChange={(e) => updateEnv("ASA_AUTO_UPDATE_CRON_EXPRESSION", e.target.value)}
+                            disabled={envConfig.ASA_AUTO_UPDATE_ENABLED !== "true"}
+                            className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
+                              envConfig.ASA_AUTO_UPDATE_ENABLED === "true" 
+                                ? "bg-background opacity-100" 
+                                : "bg-muted opacity-50 cursor-not-allowed"
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-card border rounded-lg space-y-3">
+                        <label className="text-sm font-semibold">Discord Webhook (共通設定)</label>
                         <input
                           type="text"
-                          value={envConfig.ASA_AUTO_UPDATE_CRON_EXPRESSION || ""}
-                          onChange={(e) => updateEnv("ASA_AUTO_UPDATE_CRON_EXPRESSION", e.target.value)}
-                          disabled={envConfig.ASA_AUTO_UPDATE_ENABLED !== "true"}
-                          className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
-                            envConfig.ASA_AUTO_UPDATE_ENABLED === "true" 
-                              ? "bg-background opacity-100" 
-                              : "bg-muted opacity-50 cursor-not-allowed"
-                          }`}
+                          value={envConfig.ASA_DISCORD_WEBHOOK_URL || ""}
+                          onChange={(e) => updateEnv("ASA_DISCORD_WEBHOOK_URL", e.target.value)}
+                          className="w-full px-3 py-2 border rounded bg-background font-mono text-sm"
+                          placeholder="https://discord.com/api/webhooks/..."
                         />
+                        <p className="text-xs text-muted-foreground">個別設定がない場合のデフォルト通知先となります</p>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* サーバー個別設定 */}
                 <div className="space-y-4">
@@ -621,26 +647,41 @@ export default function ClusterSettingsPage() {
                   const mapKey = `ASA${i}_SERVER_MAP`;
                   if (envConfig[mapKey] === undefined) return null;
 
+                  const containerName = envConfig[`ASA${i}_CONTAINER_NAME`];
+                  const container = containers.find(c => c.name === containerName);
+                  const onlineCount = container?.onlinePlayers?.length || 0;
+                  const offlineCount = container?.offlinePlayers?.length || 0;
+                  const hasPlayers = (onlineCount + offlineCount) > 0;
+
                   return (
                     <div key={i} className="p-4 bg-card border rounded-lg shadow-sm">
                       <div className="flex items-center gap-2 mb-3">
-                        <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-bold rounded uppercase">
+                        <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase shrink-0">
                           asa{i}
                         </span>
-                        <span className="font-mono text-xs text-muted-foreground uppercase">
-                          {envConfig[`ASA${i}_CONTAINER_NAME`]}
+                        <span className="text-sm font-mono font-bold truncate">
+                          {containerName} <span className="text-muted-foreground mx-1">:</span> {envConfig.ASA_SESSION_PREFIX || ""}{envConfig[`ASA${i}_SESSION_NAME`] || ""}
                         </span>
                       </div>
                       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 items-end">
                         <div className="space-y-1">
-                          <label className="text-xs font-semibold">マップ</label>
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-semibold">マップ</label>
+                            {hasPlayers && (
+                              <span className="text-[10px] text-destructive font-bold flex items-center gap-0.5">
+                                <Users className="h-3 w-3" />
+                                変更不可 ({onlineCount + offlineCount}人)
+                              </span>
+                            )}
+                          </div>
                           <select
                             value={envConfig[mapKey]}
                             onChange={(e) => updateEnv(mapKey, e.target.value)}
-                            className="w-full px-3 py-2 border rounded bg-background text-sm"
+                            disabled={hasPlayers}
+                            className={`w-full px-3 py-2 border rounded text-sm ${hasPlayers ? "bg-muted cursor-not-allowed" : "bg-background"}`}
                           >
                             {Object.entries(ASA_MAP_NAMES).map(([raw, display]) => (
-                              <option key={raw} value={raw}>
+                               <option key={raw} value={raw}>
                                 {display} ({raw})
                               </option>
                             ))}
@@ -650,7 +691,7 @@ export default function ClusterSettingsPage() {
                         {!simpleMode && (
                           <>
                             <div className="space-y-1">
-                              <label className="text-xs font-semibold">サーバー名 (末尾)</label>
+                              <label className="text-xs font-semibold">セッション名 (末尾)</label>
                               <input
                                 type="text"
                                 value={envConfig[`ASA${i}_SESSION_NAME`] || ""}
@@ -676,6 +717,22 @@ export default function ClusterSettingsPage() {
                                 className="w-full px-3 py-2 border rounded bg-muted text-sm text-muted-foreground cursor-not-allowed"
                               />
                             </div>
+
+                            {isAdmin && (
+                              <div className="space-y-1 lg:col-span-4">
+                                <label className="text-xs font-semibold text-primary flex items-center gap-1">
+                                  <Zap className="h-3 w-3" /> Discord Webhook URL (個別設定)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={envConfig[`ASA${i}_DISCORD_WEBHOOK_URL`] || ""}
+                                  onChange={(e) => updateEnv(`ASA${i}_DISCORD_WEBHOOK_URL`, e.target.value)}
+                                  className="w-full px-3 py-2 border rounded bg-background text-sm font-mono"
+                                  placeholder="https://discord.com/api/webhooks/..."
+                                />
+                                <p className="text-[10px] text-muted-foreground">このサーバー専用の通知先を指定する場合に入力します（空なら共通設定を使用）</p>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
