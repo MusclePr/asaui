@@ -66,44 +66,51 @@ ARK サーバー群は [cluster/compose.yml](cluster/compose.yml) で運用し�
 
 ### 2.1 既存サービス概要
 
-既存の ARK サーバー群（`asa0`, `asa1` など）は、cluster 側の compose（[cluster/compose.yml](cluster/compose.yml)）に定義される。
+既存の ARK サーバー群（`asa0`, `asa1` など）は、cluster 側の compose（[cluster/compose.yml](cluster/compose.yml)）が定義されています。
 
 - **asa0**
   - **image:** `ghcr.io/musclepr/ark_ascended_docker:latest`
   - **container_name:** `asa0`
-  - **volumes:** `./cluster/server:/cluster/server`, `./cluster/backups:/var/backups`
+  - **volumes:** `${HOST_CLUSTER_DIR:-.}/cluster/server:/cluster/server`, `./cluster/backups:/var/backups`
   - **ports:** `7790:7790/udp`, `27030:27030/udp`
 - **asa1**
   - **image:** `ghcr.io/musclepr/ark_ascended_docker:latest` ... 共通
   - **container_name:** `asa1`
-  - **volumes:** `./cluster/server:/cluster/server`, `./cluster/backups:/var/backups:ro` ... backup は、asa0 任せのため、read only とされている。
+  - **volumes:** `${HOST_CLUSTER_DIR:-.}/cluster/server:/cluster/server`
   - **ports:** `7791:7791/udp`, `27031:27031/udp`
+- **asa_config**
+  - **image:** `busybox`
+  - **container_name:** `asa_config`
+  - **init:** `true`
+  - **command:** `httpd -vfh /web`
+  - **volumes:** `${HOST_CLUSTER_DIR:-.}/web:/web:ro`
 
-### 2.2 asaui サービス追加要件
+- 注意点：`${HOST_CLUSTER_DIR:-.}` について
+  - docker in docker の場合は、docker ホストのパスを与える必要があるため、HOST_CLUSTER_DIR を定義しています。
+  - ホストから直接実行する時は、HOST_CLUSTER_DIR は未定義となり、カレントディレクトリパスからの相対参照になります。
 
-`compose.yml` に、以下の要件を満たす `asaui` サービスを追加することを前提とする。
+### 2.2 asaui サービス
+
+cluster の親フォルダに、`compose.yml` を定義します。
 
 - **サービス名:** `asaui`
 - **イメージ:** `ghcr.io/musclepr/asaui:latest`
 - **コンテナ名:** `asaui`（推奨）
-- **依存関係:**
-  - `depends_on` に `asa0`, `asa1` を指定しない。これらのサイドコンテナの start/stop 自体を制御するため。
-- **起動点:**
-  - 運用・起動は常に本リポジトリルートの `compose.yml` を使用する（参照用サブモジュール側の compose は使用しない）。
 - **ボリューム:**
-  - `./cluster/server:/cluster/server`（セーブデータ参照およびサーバー側リストファイル更新のため）
-  - `./cluster:/data`（表示名などのメタ情報を JSON で永続化）
   - `./cluster:/cluster`（cluster の env 編集・compose up/down のため）
   - `/var/run/docker.sock:/var/run/docker.sock` ホストの docker コマンドと同等に扱えるようにするため。
 - **環境変数**
-  - `.env` を使用する。`ARK_SERVERS` から制御対象コンテナを決定し、`SRV_<id>_MAP` で各コンテナに対応するマップ名を与える。
-  - 認証用に `ASAUI_PASSWORD` と `NEXTAUTH_SECRET` を必須とする。
-  - `ASAUI_CLUSTER_DIR`（デフォルト: `/cluster`）を指定可能。
-- **ネットワーク:**
-  - 既存サービスと同一ネットワーク（デフォルトブリッジで問題なければそれを利用）
+  - `.env` を使用します。
+    ```ini
+    ASAUI_PASSWORD=your_secure_password
+    ASAUI_SIMPLE_PASSWORD=your_simple_password
+    NEXT_PUBLIC_BASE_PATH=/asaui
+    NEXTAUTH_SECRET=YourOriginalPrivateSecretSign
+    # https://docs.curseforge.com/rest-api/#authentication
+    CURSEFORGE_API_KEY=
+    ```
 - **ポート:**
   - 開発時はホストに公開（例: `8080:3000` など）
-  - 本番運用では、別 Web サーバーからのリバースプロキシを前提とし、asaui 自身は内部ポートのみ公開でもよい（開発時は考慮不要）
 
 ---
 
@@ -118,8 +125,9 @@ ARK サーバー群は [cluster/compose.yml](cluster/compose.yml) で運用し�
 - **フレームワーク:**
   - 特に指定なし。Node.js/Next.js を想定した設計とするが、要件を満たせば他でも可。
 - **認証・保護:**
-  - `.htaccess` 等によるベーシック認証などで保護される前提。
-  - asaui 自身もアプリ内ログイン（パスワード）を持ち、未ログイン時は `/login` に誘導する。
+  - asaui 自身にアプリ内ログイン（パスワード）を持ち、未ログイン時は `/login` に誘導する。
+    - 管理者とオーナーでパスワードが異なり、扱える UI パーツも異なります。
+    - 管理者はすべて操作可能。オーナーは限定的。
 
 ### 3.2 プレイヤーホワイトリスト管理
 
@@ -170,7 +178,7 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
 
 - `asa0`
 - `asa1`
-- 将来的に `asa_sub2` などが追加される可能性はあるが、compose.yml に静的に定義されたもののみを扱う。
+- 将来的に `asa2` などが追加される可能性はあるが、compose.yml に静的に定義されたもののみを扱う。
 
 **要件:**
 
@@ -217,7 +225,7 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
 
 ## 4. サーバー制御・RCON 操作
 
-### 4.1 サイドコンテナ制御コマンド
+### 4.1 ASAコンテナ制御コマンド
 
 **要件:**
 
@@ -226,7 +234,7 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
 ### 4.2 RCON 操作
 
 - 対象コンテナ内で `manager rcon <command>` を Docker Exec 相当で実行する。
-- 実行対象は `ARK_MAP_MAIN`（未指定時は `ARK_SERVERS` の先頭）とする。
+- 実行対象は `ARK_MAP_MAIN`（未指定時は `ARK_SERVERS` の先頭）とする。(古い情報のため削除)
 - 任意コマンド送信フォームと結果表示を提供する。
 
 ---
@@ -235,7 +243,7 @@ EOS ID から成るプレイヤーのセーブデータがどのセーブディ�
 
 ### 5.1 認証・アクセス制御
 
-- `.htaccess` による保護前提
+- `.htaccess` による保護前提（古い情報のため削除）
 
 - 必要に応じてアプリ内認証を追加可能
 
