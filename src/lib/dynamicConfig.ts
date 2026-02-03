@@ -4,7 +4,7 @@ import { CLUSTER_DIR } from './cluster';
 import { getContainers, execRcon } from './docker';
 
 export const DYNAMIC_CONFIG_FILE = path.join(CLUSTER_DIR, 'web', 'dynamicconfig.ini');
-export const DYNAMIC_CONFIG_APPLY_COMMAND = 'DynamicConfigReload';
+export const DYNAMIC_CONFIG_APPLY_COMMAND = 'ForceUpdateDynamicConfig';
 
 export interface DynamicConfig {
   [key: string]: string;

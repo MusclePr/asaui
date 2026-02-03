@@ -112,6 +112,42 @@ export default function Dashboard() {
     }
   };
 
+  const QUICK_RCON_COMMANDS = [
+    { label: "☠", command: "DestroyWildDinos", tooltip: "野生恐竜のリセット" },
+  ];
+
+  const [quickRconInProgress, setQuickRconInProgress] = useState<Record<string, boolean>>({});
+
+  const handleQuickRcon = async (containerName: string, command: string, label: string) => {
+    const key = `${containerName}-${command}`;
+    if (quickRconInProgress[key]) return;
+    
+    setQuickRconInProgress(prev => ({ ...prev, [key]: true }));
+    try {
+      const res = await fetch(getApiUrl("/api/rcon"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          containerId: containerName,
+          command: command
+        }),
+      });
+      const data = await res.json();
+      if (data.output) {
+        alert(`${label} 実行結果:\n${data.output}`);
+      } else if (data.error) {
+        alert(`${label} 実行エラー:\n${data.error}`);
+      } else {
+        alert(`${label} を実行しました。`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`${label} コマンドの送信に失敗しました。`);
+    } finally {
+      setQuickRconInProgress(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
   const handleCluster = async (action: "up" | "down") => {
     setClusterBusy(action);
     setClusterLog(null);
@@ -412,6 +448,23 @@ export default function Dashboard() {
                     </div>
                   </div>
                 )}
+
+                <div className="pt-2 border-t">
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase mr-1">RCON Shortcuts:</span>
+                    {QUICK_RCON_COMMANDS.map((q) => (
+                      <button
+                        key={q.command}
+                        onClick={() => handleQuickRcon(c.name, q.command, q.tooltip)}
+                        disabled={c.health !== 'healthy' || c.isStopping || actionsInProgress[c.id] || c.state === 'not_created' || quickRconInProgress[`${c.name}-${q.command}`]}
+                        className="w-8 h-8 flex items-center justify-center bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 disabled:opacity-40 transition-colors"
+                        title={q.tooltip}
+                      >
+                        {q.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {isAdmin && (
                   <>
