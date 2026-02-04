@@ -1,12 +1,10 @@
 services:
 
   asa0:
-    container_name: asa0
     extends:
       file: common.yml
       service: asa
-    volumes:
-      - ${HOST_CLUSTER_DIR:-.}/backups:/var/backups
+    container_name: asa0
     ports:
       - "${ASA0_SERVER_PORT}:${ASA0_SERVER_PORT}/udp"
       - "${ASA0_QUERY_PORT}:${ASA0_QUERY_PORT}/udp"
@@ -16,19 +14,20 @@ services:
       - "SERVER_PORT=${ASA0_SERVER_PORT}"
       - "QUERY_PORT=${ASA0_QUERY_PORT}"
       - "DISCORD_WEBHOOK_URL=${ASA0_DISCORD_WEBHOOK_URL:-${ASA_DISCORD_WEBHOOK_URL}}"
-      # --- Master server only settings ---
+    # --- As asa0 is a master server, the following specific settings are required. ---
       - "SLAVE_PORTS=${ASA_SLAVE_PORTS}"
       - "AUTO_BACKUP_ENABLED=${ASA_AUTO_BACKUP_ENABLED}"
       - "AUTO_BACKUP_CRON_EXPRESSION=${ASA_AUTO_BACKUP_CRON_EXPRESSION}"
       - "AUTO_UPDATE_ENABLED=${ASA_AUTO_UPDATE_ENABLED}"
       - "AUTO_UPDATE_CRON_EXPRESSION=${ASA_AUTO_UPDATE_CRON_EXPRESSION}"
+    volumes:
+      - ${HOST_CLUSTER_DIR:-.}/backups:/var/backups
 
   asa1:
-    container_name: asa1
-    image: ghcr.io/musclepr/ark_ascended_docker:latest
     extends:
       file: common.yml
       service: asa
+    container_name: asa1
     ports:
       - "${ASA1_SERVER_PORT}:${ASA1_SERVER_PORT}/udp"
       - "${ASA1_QUERY_PORT}:${ASA1_QUERY_PORT}/udp"
@@ -38,15 +37,14 @@ services:
       - "SERVER_PORT=${ASA1_SERVER_PORT}"
       - "QUERY_PORT=${ASA1_QUERY_PORT}"
       - "DISCORD_WEBHOOK_URL=${ASA1_DISCORD_WEBHOOK_URL:-${ASA_DISCORD_WEBHOOK_URL}}"
-      - "LOG_FILE=ShooterGame_sub1.log" # Avoid log file conflicts
+      - "LOG_FILE=ShooterGame_asa1.log" # Avoid log file conflicts
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 #  asa<no>:
-#    container_name: asa<no>
-#    image: ghcr.io/musclepr/ark_ascended_docker:latest
 #    extends:
 #      file: common.yml
 #      service: asa
+#    container_name: asa<no>
 #    ports:
 #      - "${ASA<no>_SERVER_PORT}:${ASA<no>_SERVER_PORT}/udp"
 #      - "${ASA<no>_QUERY_PORT}:${ASA<no>_QUERY_PORT}/udp"
@@ -56,7 +54,7 @@ services:
 #      - "SERVER_PORT=${ASA<no>_SERVER_PORT}"
 #      - "QUERY_PORT=${ASA<no>_QUERY_PORT}"
 #      - "DISCORD_WEBHOOK_URL=${ASA<no>_DISCORD_WEBHOOK_URL:-${ASA_DISCORD_WEBHOOK_URL}}"
-#      - "LOG_FILE=ShooterGame_sub<no>.log" # Avoid log file conflicts
+#      - "LOG_FILE=ShooterGame_asa<no>.log" # Avoid log file conflicts
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
   asa_config:
