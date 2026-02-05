@@ -69,9 +69,13 @@ export default function ClusterSettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [needsApply, setNeedsApply] = useState(false);
   const [simpleMode, setSimpleMode] = useState(true);
-  const [activeTab, setActiveTab] = useState<"static" | "dynamic">("static");
+  const [activeTab, setActiveTab] = useState<"static" | "dynamic" | "ini-gus" | "ini-game">("static");
 
   const [containers, setContainers] = useState<ContainerStatus[]>([]);
+
+  const anyServerRunning = useMemo(() => {
+    return containers.some(c => c.state === "running");
+  }, [containers]);
 
   // Common Settings (formerly .cluster, now .common.env)
   const [settings, setSettings] = useState<Settings>({
@@ -104,6 +108,11 @@ export default function ClusterSettingsPage() {
   const [originalDynamicConfig, setOriginalDynamicConfig] = useState<DynamicConfig>({});
   const [savingDynamic, setSavingDynamic] = useState(false);
 
+  // Raw INI States
+  const [iniContent, setIniContent] = useState("");
+  const [loadingIni, setLoadingIni] = useState(false);
+  const [savingIni, setSavingIni] = useState(false);
+
   const [allModIds, setAllModIds] = useState<string[]>([]);
   const [enabledModIds, setEnabledModIds] = useState<string[]>([]);
   const [modInfo, setModInfo] = useState<Record<string, ModInfo>>({});
@@ -114,6 +123,45 @@ export default function ClusterSettingsPage() {
   }, [allModIds, enabledModIds]);
 
   const allModsCsv = useMemo(() => joinModsCsv(allModIds), [allModIds]);
+
+  const fetchIni = async (filename: "GameUserSettings.ini" | "Game.ini") => {
+    setLoadingIni(true);
+    setError(null);
+    try {
+      const res = await fetch(getApiUrl(`/api/cluster/config-file/${filename}`), { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `${filename} の読み込みに失敗しました`);
+      setIniContent(data.content || "");
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoadingIni(false);
+    }
+  };
+
+  const saveIni = async (filename: "GameUserSettings.ini" | "Game.ini") => {
+    if (anyServerRunning) {
+      setError("サーバー起動中は保存できません");
+      return;
+    }
+    setSavingIni(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(getApiUrl(`/api/cluster/config-file/${filename}`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: iniContent }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `${filename} の保存に失敗しました`);
+      setMessage(data.message);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSavingIni(false);
+    }
+  };
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -189,6 +237,14 @@ export default function ClusterSettingsPage() {
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "ini-gus") {
+      fetchIni("GameUserSettings.ini");
+    } else if (activeTab === "ini-game") {
+      fetchIni("Game.ini");
+    }
+  }, [activeTab, anyServerRunning]);
 
   useEffect(() => {
     (async () => {
@@ -459,7 +515,7 @@ export default function ClusterSettingsPage() {
             <button
               onClick={fetchAllData}
               className="px-4 py-2 bg-secondary text-secondary-foreground rounded text-sm hover:bg-secondary/80 flex items-center gap-2"
-              disabled={loading}
+              disabled={loading || loadingIni}
             >
               <RefreshCcw className="h-4 w-4" /> 再読込
             </button>
@@ -471,13 +527,21 @@ export default function ClusterSettingsPage() {
               >
                 <Save className="h-4 w-4" /> 保存
               </button>
-            ) : (
+            ) : activeTab === "dynamic" ? (
               <button
                 onClick={saveDynamic}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 flex items-center gap-2 shadow-lg shadow-primary/20"
                 disabled={savingDynamic || loading}
               >
                 <Zap className="h-4 w-4" /> 保存して即時反映
+              </button>
+            ) : (
+              <button
+                onClick={() => saveIni(activeTab === "ini-gus" ? "GameUserSettings.ini" : "Game.ini")}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 flex items-center gap-2 shadow-lg shadow-primary/20"
+                disabled={savingIni || loadingIni || anyServerRunning}
+              >
+                <Save className="h-4 w-4" /> 保存
               </button>
             )}
           </div>
@@ -509,6 +573,32 @@ export default function ClusterSettingsPage() {
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-amber-500" />
               動的設定 (即時反映)
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("ini-gus")}
+            className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+              activeTab === "ini-gus" 
+                ? "text-primary border-b-2 border-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4" />
+              GameUserSettings.ini
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("ini-game")}
+            className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+              activeTab === "ini-game" 
+                ? "text-primary border-b-2 border-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4" />
+              Game.ini
             </div>
           </button>
         </div>
@@ -544,7 +634,7 @@ export default function ClusterSettingsPage() {
               </div>
             )}
 
-            {activeTab === "static" ? (
+            {activeTab === "static" && (
               <>
                 {/* クラスタ設定 (.env) */}
                 {isAdmin && (
@@ -1050,7 +1140,9 @@ export default function ClusterSettingsPage() {
               </div>
             </div>
               </>
-            ) : (
+            )}
+
+            {activeTab === "dynamic" && (
               <div className="space-y-6">
                 <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3">
                   <Zap className="h-5 w-5 text-amber-600 mt-0.5" />
@@ -1142,6 +1234,41 @@ export default function ClusterSettingsPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {(activeTab === "ini-gus" || activeTab === "ini-game") && (
+              <div className="space-y-6">
+                <div className={`p-4 rounded-lg border flex items-start gap-3 ${anyServerRunning ? "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200" : "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200"}`}>
+                  <Info className="h-5 w-5 mt-0.5" />
+                  <div className="text-sm space-y-1">
+                    <p className="font-bold">{activeTab === "ini-gus" ? "GameUserSettings.ini" : "Game.ini"} エディタ</p>
+                    {anyServerRunning ? (
+                      <p>サーバーが起動中のため、現在は閲覧のみ可能です。編集するには全サーバーを停止してください。</p>
+                    ) : (
+                      <p>
+                        ファイルを直接編集します。
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-card border rounded-lg overflow-hidden flex flex-col min-h-[500px]">
+                  {loadingIni ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  ) : (
+                    <textarea
+                      value={iniContent}
+                      onChange={(e) => setIniContent(e.target.value)}
+                      readOnly={anyServerRunning}
+                      className={`flex-1 w-full p-4 font-mono text-sm resize-none focus:outline-none bg-background ${anyServerRunning ? "cursor-not-allowed opacity-80" : ""}`}
+                      placeholder="Loading configuration..."
+                      spellCheck={false}
+                    />
+                  )}
                 </div>
               </div>
             )}
