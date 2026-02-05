@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
+    "@monaco-editor/react": "^4.7.0",
     "ansi-to-html": "^0.7.2",
     "clsx": "^2.1.0",
     "dockerode": "^4.0.2",

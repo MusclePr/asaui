@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import Editor from "@monaco-editor/react";
 import AppLayout from "@/components/AppLayout";
 import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff, ShieldAlert, ChevronDown, ChevronRight, Eye, EyeOff, Zap, Settings2, Info, Users } from "lucide-react";
 import { PasswordInput } from "@/components/PasswordInput";
@@ -1254,19 +1255,28 @@ export default function ClusterSettingsPage() {
                   </div>
                 </div>
 
-                <div className="bg-card border rounded-lg overflow-hidden flex flex-col min-h-[500px]">
+                <div className="bg-card border rounded-lg overflow-hidden flex flex-col h-[600px]">
                   {loadingIni ? (
                     <div className="flex-1 flex items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
                   ) : (
-                    <textarea
+                    <Editor
+                      height="100%"
+                      language="ini"
+                      theme="vs-dark"
                       value={iniContent}
-                      onChange={(e) => setIniContent(e.target.value)}
-                      readOnly={anyServerRunning}
-                      className={`flex-1 w-full p-4 font-mono text-sm resize-none focus:outline-none bg-background ${anyServerRunning ? "cursor-not-allowed opacity-80" : ""}`}
-                      placeholder="Loading configuration..."
-                      spellCheck={false}
+                      onChange={(value) => setIniContent(value || "")}
+                      options={{
+                        readOnly: anyServerRunning,
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        automaticLayout: true,
+                        scrollBeyondLastLine: false,
+                        renderLineHighlight: "all",
+                        wordWrap: "on",
+                        padding: { top: 16, bottom: 16 },
+                      }}
                     />
                   )}
                 </div>
