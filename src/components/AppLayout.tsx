@@ -4,7 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
-import { LogOut, Server, Users, Settings } from "lucide-react";
+import { LogOut, Server, Users, Settings, Archive } from "lucide-react";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -36,6 +36,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </Link>
               <Link href="/players" className="transition-colors hover:text-foreground/80 flex items-center gap-1">
                 <Users className="h-4 w-4" /> プレイヤー
+              </Link>
+              <Link href="/backups" className="transition-colors hover:text-foreground/80 flex items-center gap-1">
+                <Archive className="h-4 w-4" /> バックアップ
               </Link>
               <Link href="/cluster" className="transition-colors hover:text-foreground/80 flex items-center gap-1">
                 <Settings className="h-4 w-4" /> 設定
