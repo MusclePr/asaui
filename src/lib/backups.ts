@@ -144,7 +144,7 @@ export async function createBackup() {
   
   if (isRunning) {
     // Use the manager script inside the asa0 container
-    return await runDockerCompose(["compose", "exec", "-T", "asa0", "manager", "backup"]);
+    return await runDockerCompose(["compose", "exec", "-u", "arkuser", "-T", "asa0", "manager", "backup"]);
   } else {
     // Manual backup while container is offline
     const sessionName = await getSessionName();
@@ -173,7 +173,7 @@ export async function restoreBackup(filename: string) {
 
   if (isRunning) {
     // manager restore <filename>
-    return await runDockerCompose(["compose", "exec", "-T", "asa0", "manager", "restore", filename]);
+    return await runDockerCompose(["compose", "exec", "-u", "arkuser", "-T", "asa0", "manager", "restore", filename]);
   } else {
     // Manual restore while container is offline
     console.log(`Performing offline restore: ${filename}`);
