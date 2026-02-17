@@ -34,12 +34,9 @@ next-env.d.ts
 
 # app and data (for local development)
 /.env
-/cluster/server
-/cluster/backups
-/cluster/players.json
 
-# cluster (generated/secret)
-/cluster/.*
+# cluster (generated)
+/cluster/
 
 # external docs only (local)
 /external/ARK_Ascended_Docker/.env

@@ -30,8 +30,9 @@ export async function POST(req: NextRequest) {
 
     const args = [
       "compose",
-      "-f",
-      CLUSTER_COMPOSE_FILE,
+      // これを指定すると、暗黙的に読み込まれるはずの compose.override.yml が読み込まれなくなるので、コメントアウトしています。
+      //"-f",
+      //CLUSTER_COMPOSE_FILE,
       action,
     ];
 
