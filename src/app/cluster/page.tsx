@@ -773,7 +773,7 @@ export default function ClusterSettingsPage() {
                             disabled={hasPlayers}
                             className={`w-full px-3 py-2 border rounded text-sm ${hasPlayers ? "bg-muted cursor-not-allowed" : "bg-background"}`}
                           >
-                            <option value="">(None)</option>
+                            {isAdmin && <option value="">(None)</option>}
                             {Object.entries(ASA_MAP_NAMES).map(([raw, display]) => (
                                <option key={raw} value={raw}>
                                 {display} ({raw})
