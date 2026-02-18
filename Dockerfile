@@ -23,6 +23,16 @@ RUN npm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
+
+ARG PUID=1000
+ARG PGID=1000
+ARG DOCKER_GID=999
+
+# Default runtime UID/GID support
+ENV PUID=$PUID \
+  PGID=$PGID \
+  DOCKER_GID=$DOCKER_GID
+
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -69,11 +79,13 @@ VOLUME /cluster
 COPY entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+COPY --chown=$PUID:$PGID cluster.template /cluster.template
+
 # USER nextjs
 
 EXPOSE 3000
 
 ENV PORT=3000
 
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["node", "server.js"]

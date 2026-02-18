@@ -736,7 +736,9 @@ export default function ClusterSettingsPage() {
               <div className="grid gap-4">
                 {Array.from({ length: 10 }).map((_, i) => {
                   const mapKey = `ASA${i}_SERVER_MAP`;
-                  if (envConfig[mapKey] === undefined) return null;
+                  const mapValue = envConfig[mapKey];
+                  if (mapValue === undefined) return null;
+                  if (!isAdmin && mapValue === "") return null;
 
                   const containerName = envConfig[`ASA${i}_CONTAINER_NAME`];
                   const container = containers.find(c => c.name === containerName);
@@ -766,11 +768,12 @@ export default function ClusterSettingsPage() {
                             )}
                           </div>
                           <select
-                            value={envConfig[mapKey]}
+                            value={mapValue ?? ""}
                             onChange={(e) => updateEnv(mapKey, e.target.value)}
                             disabled={hasPlayers}
                             className={`w-full px-3 py-2 border rounded text-sm ${hasPlayers ? "bg-muted cursor-not-allowed" : "bg-background"}`}
                           >
+                            <option value="">(None)</option>
                             {Object.entries(ASA_MAP_NAMES).map(([raw, display]) => (
                                <option key={raw} value={raw}>
                                 {display} ({raw})

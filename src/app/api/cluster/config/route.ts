@@ -74,12 +74,7 @@ export async function POST(req: NextRequest) {
       const keys = getAsaServerKeys(i);
       // Map
       if (updates[keys.MAP] !== undefined) {
-        const mapValue = String(updates[keys.MAP]);
-        if (mapValue) {
-          newEnv[keys.MAP] = mapValue;
-        } else {
-          delete newEnv[keys.MAP];
-        }
+        newEnv[keys.MAP] = String(updates[keys.MAP]);
       }
       // Discord Webhook
       if (updates[keys.WEBHOOK] !== undefined) {

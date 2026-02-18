@@ -14,8 +14,8 @@ DOCKER_GID=${DOCKER_GID:-999}
 # Detect host path for /cluster (DooD volume path resolution)
 export HOST_CLUSTER_DIR=$(cat /proc/self/mountinfo | grep ' /cluster ' | cut -d ' ' -f 4)
 if [ -z "$HOST_CLUSTER_DIR" ]; then
-    echo "Error: Could not determine HOST_CLUSTER_DIR from /proc/self/mountinfo. Make sure /cluster is bind-mounted."
-    exit 1
+    echo "Warning: Could not determine HOST_CLUSTER_DIR from /proc/self/mountinfo. /cluster may not be bind-mounted. Continuing..."
+    HOST_CLUSTER_DIR=""
 fi
 
 echo "Starting with UID: $USER_ID, GID: $GROUP_ID, DOCKER_GID: $DOCKER_GID, HOST_CLUSTER_DIR: $HOST_CLUSTER_DIR"
@@ -64,10 +64,15 @@ fi
 
 usermod -aG "$DOCKER_GROUP" nextjs
 
-# Ensure /cluster is writable by nextjs user
-# We only chown the directory itself to avoid recursive delay
-# /app (static files) doesn't need to be chowned recursively
+# Ensure /cluster exists and is writable by nextjs user
+mkdir -p /cluster
+# We only chown the directory itself to avoid long recursive operations
 chown nextjs:nodejs /cluster 2>/dev/null || true
+
+# If bind-mounted host dir is present, ensure ownership (best-effort)
+if [ -n "$HOST_CLUSTER_DIR" ] && [ -d "$HOST_CLUSTER_DIR" ]; then
+    chown "$USER_ID":"$GROUP_ID" "$HOST_CLUSTER_DIR" 2>/dev/null || true
+fi
 
 echo "Checking permissions for /var/run/docker.sock..."
 ls -l /var/run/docker.sock

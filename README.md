@@ -81,6 +81,7 @@ sed -E "s/^NEXTAUTH_SECRET=.*/NEXTAUTH_SECRET=$(openssl rand -base64 32)/" -i .e
 補足:
 - `ASAUI_CLUSTER_DIR` はコンテナ内のパスです（上の compose 例では `./cluster:/cluster` をマウント）。
 - `ALL_MODS` 環境変数: `asaui` は登録されているすべての MOD ID を `ALL_MODS` で管理し、そのうち有効化されたものだけを `MODS` として構成します。
+- `docker exec -itu nextjs asaui /cluster.template/update.sh` で、システムの更新が行えます。ただし、サーバーは一括停止状態に限ります。
 
 ### 参照用 external（任意）
 
