@@ -962,6 +962,7 @@ export default function ClusterSettingsPage() {
                         ) : (
                           allModIds.map((id, idx) => {
                             const isEnabled = enabledModIds.includes(id);
+                            const placeholderUrl = getApiUrl("/mod-placeholder.svg");
                             return (
                               <tr key={id} className={`border-b transition-colors hover:bg-muted/30 ${!isEnabled ? "opacity-60 grayscale" : "bg-primary/5"}`}>
                                 <td className="py-2 pl-4 text-center">
@@ -977,13 +978,13 @@ export default function ClusterSettingsPage() {
                                 <td className={`py-2 px-4 ${!isEnabled ? "line-through" : ""}`}>
                                   <div className="flex items-center gap-2">
                                     <img
-                                      src={modInfo[id]?.logoUrl || "/mod-placeholder.svg"}
+                                      src={modInfo[id]?.logoUrl || placeholderUrl}
                                       alt={modInfo[id]?.name ? `${modInfo[id]?.name} icon` : "mod icon"}
                                       className="h-12 w-12 rounded border bg-background object-cover"
                                       onError={(e) => {
                                         const target = e.currentTarget;
                                         if (target.src.endsWith("/mod-placeholder.svg")) return;
-                                        target.src = "/mod-placeholder.svg";
+                                        target.src = placeholderUrl;
                                       }}
                                     />
                                     {modInfo[id]?.url ? (
@@ -1272,7 +1273,7 @@ export default function ClusterSettingsPage() {
                   </div>
                 </div>
 
-                <div className="bg-card border rounded-lg overflow-hidden flex flex-col h-[600px]">
+                <div className="bg-card border rounded-lg flex flex-col h-[600px]">
                   {loadingIni ? (
                     <div className="flex-1 flex items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -1293,6 +1294,7 @@ export default function ClusterSettingsPage() {
                         renderLineHighlight: "all",
                         wordWrap: "on",
                         padding: { top: 16, bottom: 16 },
+                        fixedOverflowWidgets: true,
                       }}
                     />
                   )}

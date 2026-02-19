@@ -43,7 +43,7 @@ type Body = {
 
 function ensureBaseEnvExists() {
   if (fs.existsSync(CLUSTER_COMMON_ENV_DEFAULT_FILE)) return;
-  // If no default.common.env, we might be in trouble, but let's try to not fail here if it's missing for some reason
+  // If no defaults/common.env, we might be in trouble, but let's try to not fail here if it's missing for some reason
   // but usually it should be there.
 }
 
