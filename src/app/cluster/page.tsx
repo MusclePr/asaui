@@ -45,6 +45,7 @@ type ModInfo = {
   id: string;
   name?: string;
   url?: string;
+  logoUrl?: string;
 };
 
 function parseModsCsv(csv: string): string[] {
@@ -424,6 +425,7 @@ export default function ClusterSettingsPage() {
           id,
           name: data?.name,
           url: data?.url,
+          logoUrl: data?.logoUrl,
         },
       }));
     } catch {
@@ -973,18 +975,30 @@ export default function ClusterSettingsPage() {
                                 </td>
                                 <td className="py-2 px-4 font-mono font-bold text-xs">{id}</td>
                                 <td className={`py-2 px-4 ${!isEnabled ? "line-through" : ""}`}>
-                                  {modInfo[id]?.url ? (
-                                    <a
-                                      className="text-primary hover:underline font-medium"
-                                      href={modInfo[id]?.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >
-                                      {modInfo[id]?.name || "Loading..."}
-                                    </a>
-                                  ) : (
-                                    modInfo[id]?.name || id
-                                  )}
+                                  <div className="flex items-center gap-2">
+                                    <img
+                                      src={modInfo[id]?.logoUrl || "/mod-placeholder.svg"}
+                                      alt={modInfo[id]?.name ? `${modInfo[id]?.name} icon` : "mod icon"}
+                                      className="h-12 w-12 rounded border bg-background object-cover"
+                                      onError={(e) => {
+                                        const target = e.currentTarget;
+                                        if (target.src.endsWith("/mod-placeholder.svg")) return;
+                                        target.src = "/mod-placeholder.svg";
+                                      }}
+                                    />
+                                    {modInfo[id]?.url ? (
+                                      <a
+                                        className="text-primary hover:underline font-medium"
+                                        href={modInfo[id]?.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        {modInfo[id]?.name || "Loading..."}
+                                      </a>
+                                    ) : (
+                                      modInfo[id]?.name || id
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="py-2 px-4 flex items-center gap-1">
                                   <button

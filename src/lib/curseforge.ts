@@ -5,6 +5,7 @@ export type CurseForgeModInfo = {
   name?: string;
   slug?: string;
   url?: string;
+  logoUrl?: string;
 };
 
 type CacheEntry = { value: CurseForgeModInfo; expiresAt: number };
@@ -25,12 +26,13 @@ function setCache(id: string, value: CurseForgeModInfo) {
   cache.set(id, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-function extractData(json: any): { name?: string; slug?: string } {
+function extractData(json: any): { name?: string; slug?: string; logoUrl?: string } {
   // Try a few shapes defensively.
   const data = json?.data ?? json?.Data ?? json?.result ?? json;
   const name = data?.name ?? data?.Name;
   const slug = data?.slug ?? data?.Slug;
-  return { name, slug };
+  const logoUrl = data?.logo?.thumbnailUrl ?? data?.logo?.url;
+  return { name, slug, logoUrl };
 }
 
 export async function fetchCurseForgeMod(modId: string): Promise<CurseForgeModInfo> {
@@ -61,12 +63,12 @@ export async function fetchCurseForgeMod(modId: string): Promise<CurseForgeModIn
   }
 
   const json = await res.json();
-  const { name, slug } = extractData(json);
+  const { name, slug, logoUrl } = extractData(json);
   const modUrl = slug
     ? `https://www.curseforge.com/ark-survival-ascended/mods/${slug}`
     : undefined;
 
-  const value: CurseForgeModInfo = { id: modId, name, slug, url: modUrl };
+  const value: CurseForgeModInfo = { id: modId, name, slug, url: modUrl, logoUrl };
   setCache(modId, value);
   return value;
 }
