@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ContainerStatus } from '@/types';
 import { getServers, ARK_SAVE_BASE_DIR } from './config';
-import { getMapDisplayName } from './maps';
+import { getMapDisplayName, getBaseMapName } from './maps';
 import { getPlayerProfiles } from './storage';
 import { SIGNAL_DIR } from './cluster';
 
@@ -120,7 +120,7 @@ export async function manageContainer(id: string, action: string) {
 }
 
 export async function getOfflinePlayers(mapRaw: string, onlineEosIds: string[]): Promise<{ name: string; eosId: string; lastLogin: string }[]> {
-  const saveDir = path.join(ARK_SAVE_BASE_DIR, mapRaw);
+  const saveDir = path.join(ARK_SAVE_BASE_DIR, getBaseMapName(mapRaw));
   if (!fs.existsSync(saveDir)) return [];
 
   try {

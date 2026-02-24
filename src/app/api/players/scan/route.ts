@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { ARK_SAVE_BASE_DIR, getServers } from "@/lib/config";
+import { getBaseMapName } from "@/lib/maps";
 import { getBypassList, getPlayerProfiles, getWhitelist, ensurePlayerProfiles } from "@/lib/storage";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 
@@ -19,7 +20,7 @@ export async function GET() {
     const servers = getServers();
     // Scan each server's save directory
     for (const server of servers) {
-      const saveDir = path.join(ARK_SAVE_BASE_DIR, server.map);
+      const saveDir = path.join(ARK_SAVE_BASE_DIR, getBaseMapName(server.map));
       if (!fs.existsSync(saveDir)) continue;
 
       const files = fs.readdirSync(saveDir);

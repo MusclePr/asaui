@@ -1,5 +1,6 @@
 export const ASA_MAP_NAMES: Record<string, string> = {
   "TheIsland_WP": "アイランド",
+  "TheIsland_WP:1460513": "アイランド（再鍛造）",
   "TheCenter_WP": "センター",
   "ScorchedEarth_WP": "スコーチドアース",
   "Ragnarok_WP": "ラグナロク",
@@ -19,4 +20,8 @@ export const ASA_MAP_NAMES: Record<string, string> = {
 
 export function getMapDisplayName(mapRaw: string): string {
   return ASA_MAP_NAMES[mapRaw] || mapRaw;
+}
+
+export function getBaseMapName(mapRaw: string): string {
+  return mapRaw.split(":")[0];
 }
