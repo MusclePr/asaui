@@ -660,21 +660,21 @@ export default function ClusterSettingsPage() {
                         <div className="flex items-center justify-between">
                           <label className="text-sm font-semibold">定期バックアップ</label>
                           <button
-                            onClick={() => updateEnv("ASA_AUTO_BACKUP_ENABLED", envConfig.ASA_AUTO_BACKUP_ENABLED !== "true")}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
+                            onClick={() => updateEnv("ASA0_AUTO_BACKUP_ENABLED", envConfig.ASA0_AUTO_BACKUP_ENABLED !== "true")}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA0_AUTO_BACKUP_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
                           >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_BACKUP_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA0_AUTO_BACKUP_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
                           </button>
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
                           <input
                             type="text"
-                            value={envConfig.ASA_AUTO_BACKUP_CRON_EXPRESSION || ""}
-                            onChange={(e) => updateEnv("ASA_AUTO_BACKUP_CRON_EXPRESSION", e.target.value)}
-                            disabled={envConfig.ASA_AUTO_BACKUP_ENABLED !== "true"}
+                            value={envConfig.ASA0_AUTO_BACKUP_CRON_EXPRESSION || ""}
+                            onChange={(e) => updateEnv("ASA0_AUTO_BACKUP_CRON_EXPRESSION", e.target.value)}
+                            disabled={envConfig.ASA0_AUTO_BACKUP_ENABLED !== "true"}
                             className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
-                              envConfig.ASA_AUTO_BACKUP_ENABLED === "true" 
+                              envConfig.ASA0_AUTO_BACKUP_ENABLED === "true" 
                                 ? "bg-background opacity-100" 
                                 : "bg-muted opacity-50 cursor-not-allowed"
                             }`}
@@ -686,21 +686,21 @@ export default function ClusterSettingsPage() {
                         <div className="flex items-center justify-between">
                           <label className="text-sm font-semibold">定期更新 (Steam/Mods)</label>
                           <button
-                            onClick={() => updateEnv("ASA_AUTO_UPDATE_ENABLED", envConfig.ASA_AUTO_UPDATE_ENABLED !== "true")}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
+                            onClick={() => updateEnv("ASA0_AUTO_UPDATE_ENABLED", envConfig.ASA0_AUTO_UPDATE_ENABLED !== "true")}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${envConfig.ASA0_AUTO_UPDATE_ENABLED === "true" ? "bg-primary" : "bg-muted"}`}
                           >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA_AUTO_UPDATE_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${envConfig.ASA0_AUTO_UPDATE_ENABLED === "true" ? "translate-x-6" : "translate-x-1"}`} />
                           </button>
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-medium text-muted-foreground">タイミング (Cron)</label>
                           <input
                             type="text"
-                            value={envConfig.ASA_AUTO_UPDATE_CRON_EXPRESSION || ""}
-                            onChange={(e) => updateEnv("ASA_AUTO_UPDATE_CRON_EXPRESSION", e.target.value)}
-                            disabled={envConfig.ASA_AUTO_UPDATE_ENABLED !== "true"}
+                            value={envConfig.ASA0_AUTO_UPDATE_CRON_EXPRESSION || ""}
+                            onChange={(e) => updateEnv("ASA0_AUTO_UPDATE_CRON_EXPRESSION", e.target.value)}
+                            disabled={envConfig.ASA0_AUTO_UPDATE_ENABLED !== "true"}
                             className={`w-full px-3 py-1 text-sm border rounded font-mono transition-opacity ${
-                              envConfig.ASA_AUTO_UPDATE_ENABLED === "true" 
+                              envConfig.ASA0_AUTO_UPDATE_ENABLED === "true" 
                                 ? "bg-background opacity-100" 
                                 : "bg-muted opacity-50 cursor-not-allowed"
                             }`}

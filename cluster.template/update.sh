@@ -32,6 +32,9 @@ else
     done
 fi
 
+# ユーザーが変更している可能性のあるファイルは、テンプレートの内容をベースに、ユーザーの変更を保持しながら更新します
+# 具体的には、テンプレートファイルのレイアウトに沿って、既存のファイルを更新します。
+# Usage: update_user_file <テンプレートファイル> <ユーザーが変更している可能性のあるファイル>
 function update_user_file() {
     local src="$1"
     local dst="$2"
@@ -103,31 +106,30 @@ function add_asa_section() {
 EOF
 }
 
-# ユーザーによって変更されている可能性があるファイル
-#    ../cluster/.env <--- defaults/template.env から更新します
-#    ../cluster/common.env <--- defaults/common.env から更新します
-#    ../cluster/web/dynamicconfig.ini <--- web/dynamicconfig.ini から更新します
-
+# テンプレートのレイアウトに沿ってキーにマッチする既存の設定値があれば値を更新します。
+# ファイル自体が無ければ、テンプレートからコピーします。
 update_user_file "defaults/template.env" "$CLUSTER_DIR/.env"
 update_user_file "defaults/common.env" "$CLUSTER_DIR/common.env"
 update_user_file "web/dynamicconfig.ini" "$CLUSTER_DIR/web/dynamicconfig.ini"
 
-# ファイルが無ければ作成します
-if [ ! -f "$CLUSTER_DIR/.env" ]; then
-    echo "Creating empty .env file..."
-    cp -av "defaults/template.env" "$CLUSTER_DIR/.env"
-fi
-
-if [ ! -f "$CLUSTER_DIR/common.env" ]; then
-    echo "Creating empty common.env file..."
-    cp -av "defaults/common.env" "$CLUSTER_DIR/common.env"
-fi
-
 # マップの数は、$CLUSTER_DIR/.env ファイルの ASA0_SERVER_MAP から ASA9_SERVER_MAP までの変数の有効な定義の有無で決まります
+declare -i map_count=1
 echo "services:" > "$CLUSTER_DIR/compose.override.yml"
 for i in {1..9}; do
     # ^ASA${i}_SERVER_MAP=\w+ で始まる行が $CLUSTER_DIR/.env ファイルに存在すれば、そのマップは有効とみなします
     if grep -qE "^ASA${i}_SERVER_MAP=[[:alnum:]_]+" "$CLUSTER_DIR/.env"; then
         add_asa_section "$CLUSTER_DIR/compose.override.yml" "$i"
+        ((map_count++))
     fi
 done
+echo "マップ数: $map_count"
+
+if grep -qE "^ASA0_CLUSTER_NODES=" "$CLUSTER_DIR/.env"; then
+    echo "ASA0_CLUSTER_NODES が定義されているため、マップ数に基づいて上書きします。"
+    # $CLUSTER_DIR/.env ファイルの ASA0_CLUSTER_NODES= の行を ASA0_CLUSTER_NODES=マップ数 に置換します
+    sed -i -E "s/^ASA0_CLUSTER_NODES=[0-9]*/ASA0_CLUSTER_NODES=$map_count/" "$CLUSTER_DIR/.env"
+else
+    echo "ASA0_CLUSTER_NODES が定義されていないため、マップ数に基づいて自動的に設定します。"
+    # $CLUSTER_DIR/.env ファイルの最後に ASA0_CLUSTER_NODES=マップ数 を追加します
+    echo "ASA0_CLUSTER_NODES=$map_count" >> "$CLUSTER_DIR/.env"
+fi

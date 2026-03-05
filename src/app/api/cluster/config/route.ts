@@ -56,15 +56,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate Cron expressions if updated
-    if (updates.ASA_AUTO_BACKUP_ENABLED === "true" || (updates.ASA_AUTO_BACKUP_ENABLED === undefined && newEnv.ASA_AUTO_BACKUP_ENABLED === "true")) {
-      if (updates.ASA_AUTO_BACKUP_CRON_EXPRESSION) {
-        const cronV = validateCronWithSupercronic(String(updates.ASA_AUTO_BACKUP_CRON_EXPRESSION));
+    if (updates.ASA0_AUTO_BACKUP_ENABLED === "true" || (updates.ASA0_AUTO_BACKUP_ENABLED === undefined && newEnv.ASA0_AUTO_BACKUP_ENABLED === "true")) {
+      if (updates.ASA0_AUTO_BACKUP_CRON_EXPRESSION) {
+        const cronV = validateCronWithSupercronic(String(updates.ASA0_AUTO_BACKUP_CRON_EXPRESSION));
         if (!cronV.ok) return NextResponse.json({ error: cronV.error }, { status: 400 });
       }
     }
-    if (updates.ASA_AUTO_UPDATE_ENABLED === "true" || (updates.ASA_AUTO_UPDATE_ENABLED === undefined && newEnv.ASA_AUTO_UPDATE_ENABLED === "true")) {
-      if (updates.ASA_AUTO_UPDATE_CRON_EXPRESSION) {
-        const cronV = validateCronWithSupercronic(String(updates.ASA_AUTO_UPDATE_CRON_EXPRESSION));
+    if (updates.ASA0_AUTO_UPDATE_ENABLED === "true" || (updates.ASA0_AUTO_UPDATE_ENABLED === undefined && newEnv.ASA0_AUTO_UPDATE_ENABLED === "true")) {
+      if (updates.ASA0_AUTO_UPDATE_CRON_EXPRESSION) {
+        const cronV = validateCronWithSupercronic(String(updates.ASA0_AUTO_UPDATE_CRON_EXPRESSION));
         if (!cronV.ok) return NextResponse.json({ error: cronV.error }, { status: 400 });
       }
     }
