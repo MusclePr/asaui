@@ -23,7 +23,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
 
     let detailedState: string | undefined = undefined;
     if (server.port && signalsExist) {
-      const statusFile = path.join(SIGNAL_DIR, `status_${server.port}`);
+      const statusFile = path.join(SIGNAL_DIR, `server_${server.port}`, 'status');
       if (fs.existsSync(statusFile)) {
         try {
           detailedState = fs.readFileSync(statusFile, 'utf8').trim() || undefined;
