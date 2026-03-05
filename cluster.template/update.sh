@@ -16,7 +16,7 @@ SYSTEM_FILES=(
     defaults/common.env
 )
 
-CLUSTER_DIR="../cluster"
+CLUSTER_DIR="${CLUSTER_DIR:-../cluster}"
 
 # ../cluster ディレクトリが存在しない場合は、テンプレートからコピーして作成します
 if [ ! -d "$CLUSTER_DIR" ]; then
