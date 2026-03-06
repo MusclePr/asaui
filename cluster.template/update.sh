@@ -2,8 +2,7 @@
 
 set -e
 
-# このスクリプトは、cluster.template ディレクトリ内にある前提で動作します。常にこのディレクトリ内で実行されるようにします。
-cd "$(dirname "$0")"
+TEMPLATE_DIR="$(dirname "$0")"
 
 # cluster ディレクトリが既に存在していれば、その設定を引き継ぎ、最新の構成に更新します
 # 最新の構成は cluster.template ディレクトリにあります。
@@ -17,20 +16,24 @@ SYSTEM_FILES=(
 )
 
 CLUSTER_DIR="${CLUSTER_DIR:-../cluster}"
-
-# ../cluster ディレクトリが存在しない場合は、テンプレートからコピーして作成します
-if [ ! -d "$CLUSTER_DIR" ]; then
-    echo "Creating cluster directory from template..."
-    cp -avr . "$CLUSTER_DIR" --exclude=update.sh
+if [ ! -d "$CLUSTER_DIR" ] || [ ! -f "$CLUSTER_DIR/compose.yml" ]; then
+    read -p "Cluster directory '$CLUSTER_DIR' does not exist. Do you want to create it with the latest template files? (Y/n) " answer
+    if [[ "$answer" =~ ^[Nn] ]]; then
+        echo "Aborting update. Please create the cluster directory and populate it with the latest template files before running this script."
+        exit 1
+    fi
 else
-    echo "Updating existing cluster directory with latest template files..."
-    mkdir -p "$CLUSTER_DIR/defaults"
-    # システムファイルは常にテンプレートからコピーして上書きします
-    for file in "${SYSTEM_FILES[@]}"; do
-        echo "Updating $file..."
-        cp -av "$file" "$CLUSTER_DIR/$file"
-    done
+    echo "Cluster directory: $CLUSTER_DIR"
 fi
+
+# CLUSTER_DIR ディレクトリの有無に関わらず、最新のテンプレートファイルで更新します。
+echo "Updating existing cluster directory with latest template files..."
+mkdir -p "$CLUSTER_DIR/defaults"
+for file in "${SYSTEM_FILES[@]}"; do
+    echo "Updating $file..."
+    mkdir -p "$(dirname "$CLUSTER_DIR/$file")"
+    cp -av "$TEMPLATE_DIR/$file" "$CLUSTER_DIR/$file"
+done
 
 # ユーザーが変更している可能性のあるファイルは、テンプレートの内容をベースに、ユーザーの変更を保持しながら更新します
 # 具体的には、テンプレートファイルのレイアウトに沿って、既存のファイルを更新します。
@@ -108,28 +111,35 @@ EOF
 
 # テンプレートのレイアウトに沿ってキーにマッチする既存の設定値があれば値を更新します。
 # ファイル自体が無ければ、テンプレートからコピーします。
-update_user_file "defaults/template.env" "$CLUSTER_DIR/.env"
-update_user_file "defaults/common.env" "$CLUSTER_DIR/common.env"
-update_user_file "web/dynamicconfig.ini" "$CLUSTER_DIR/web/dynamicconfig.ini"
+update_user_file "$TEMPLATE_DIR/defaults/template.env" "$CLUSTER_DIR/.env"
+update_user_file "$TEMPLATE_DIR/defaults/common.env" "$CLUSTER_DIR/common.env"
+update_user_file "$TEMPLATE_DIR/web/dynamicconfig.ini" "$CLUSTER_DIR/web/dynamicconfig.ini"
 
-# マップの数は、$CLUSTER_DIR/.env ファイルの ASA0_SERVER_MAP から ASA9_SERVER_MAP までの変数の有効な定義の有無で決まります
-declare -i map_count=1
+# マップの数は、$CLUSTER_DIR/.env ファイルの ASA0_SERVER_MAP から ASA9_SERVER_MAP までの変数の有効な定義を、ASA0_CLUSTER_NODES があればそれを上限に作成します。
+declare -i map_count=1 nodes
+nodes=$(grep -E "^ASA0_CLUSTER_NODES=" "$CLUSTER_DIR/.env" | cut -d= -f2)
 echo "services:" > "$CLUSTER_DIR/compose.override.yml"
 for i in {1..9}; do
     # ^ASA${i}_SERVER_MAP=\w+ で始まる行が $CLUSTER_DIR/.env ファイルに存在すれば、そのマップは有効とみなします
     if grep -qE "^ASA${i}_SERVER_MAP=[[:alnum:]_]+" "$CLUSTER_DIR/.env"; then
         add_asa_section "$CLUSTER_DIR/compose.override.yml" "$i"
         ((map_count++))
+        if [[ -n "$nodes" && $i -ge $nodes ]]; then
+            break
+        fi
     fi
 done
 echo "マップ数: $map_count"
 
-if grep -qE "^ASA0_CLUSTER_NODES=" "$CLUSTER_DIR/.env"; then
-    echo "ASA0_CLUSTER_NODES が定義されているため、マップ数に基づいて上書きします。"
-    # $CLUSTER_DIR/.env ファイルの ASA0_CLUSTER_NODES= の行を ASA0_CLUSTER_NODES=マップ数 に置換します
-    sed -i -E "s/^ASA0_CLUSTER_NODES=[0-9]*/ASA0_CLUSTER_NODES=$map_count/" "$CLUSTER_DIR/.env"
+if [[ -n "$nodes" ]]; then
+    if [[ "$nodes" != "$map_count" ]]; then
+        echo "ASA0_CLUSTER_NODES の値 ($nodes) は検出したマップ数 ($map_count) と一致しません。検出したマップ数で上書きします。"
+        # $CLUSTER_DIR/.env ファイルの ASA0_CLUSTER_NODES= の行を ASA0_CLUSTER_NODES=マップ数 に置換します
+        sed -i -E "s/^ASA0_CLUSTER_NODES=[0-9]*/ASA0_CLUSTER_NODES=$map_count/" "$CLUSTER_DIR/.env"
+    fi
 else
     echo "ASA0_CLUSTER_NODES が定義されていないため、マップ数に基づいて自動的に設定します。"
     # $CLUSTER_DIR/.env ファイルの最後に ASA0_CLUSTER_NODES=マップ数 を追加します
     echo "ASA0_CLUSTER_NODES=$map_count" >> "$CLUSTER_DIR/.env"
 fi
+echo "ASA0_CLUSTER_NODES=$map_count"
