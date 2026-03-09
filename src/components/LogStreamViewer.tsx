@@ -68,7 +68,8 @@ export default function LogStreamViewer({
                 const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s?(.*)$/);
                 
                 if (tsMatch) {
-                  const [_, timestamp, message] = tsMatch;
+                  const timestamp = tsMatch[1];
+                  const message = tsMatch[2];
                   return {
                     text: message,
                     html: converter.toHtml(message),
@@ -118,7 +119,7 @@ export default function LogStreamViewer({
         eventSource.close();
       }
     };
-  }, [containerId, maxLines]);
+  }, [containerId, converter, maxLines]);
 
   // Auto-scroll logic
   useEffect(() => {

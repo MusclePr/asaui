@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addToWhitelist, removeFromWhitelist } from "@/lib/storage";
-import { execRcon } from "@/lib/docker";
-import { getServers } from "@/lib/config";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
@@ -19,8 +21,8 @@ export async function POST(req: NextRequest) {
     // await Promise.all(targets.map(id => execRcon(id, `AllowPlayerToJoin ${eosId}`)));
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -38,7 +40,7 @@ export async function DELETE(req: NextRequest) {
     // await Promise.all(targets.map(id => execRcon(id, `DisallowPlayerToJoin ${eosId}`)));
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

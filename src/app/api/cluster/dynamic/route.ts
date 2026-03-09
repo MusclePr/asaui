@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { readDynamicConfig, writeDynamicConfig, broadcastDynamicConfigReload } from "@/lib/dynamicConfig";
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -12,8 +16,8 @@ export async function GET() {
   try {
     const config = readDynamicConfig();
     return NextResponse.json(config);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -28,7 +32,7 @@ export async function POST(req: NextRequest) {
     writeDynamicConfig(config);
     
     // Broadcast reload in background (we don't wait for all to finish before returning success for file write)
-    const broadcastPromise = broadcastDynamicConfigReload().catch(err => {
+    void broadcastDynamicConfigReload().catch(err => {
       console.error("Failed to broadcast dynamic config reload:", err);
     });
 
@@ -36,7 +40,7 @@ export async function POST(req: NextRequest) {
       success: true, 
       message: "Dynamic settings saved. Broadcasting reload to servers..." 
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -38,7 +38,7 @@ export default function BackupsPage() {
   const [actionFile, setActionFile] = useState<string | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState<string | null>(null);
 
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
 
   const fetchData = async () => {
     try {
@@ -70,7 +70,7 @@ export default function BackupsPage() {
       } else {
         alert("バックアップの作成に失敗しました。");
       }
-    } catch (error) {
+    } catch {
       alert("バックアップの作成中にエラーが発生しました。");
     } finally {
       setCreating(false);
@@ -87,7 +87,7 @@ export default function BackupsPage() {
       } else {
         alert("削除に失敗しました。");
       }
-    } catch (error) {
+    } catch {
       alert("削除中にエラーが発生しました。");
     } finally {
       setActionFile(null);
@@ -109,7 +109,7 @@ export default function BackupsPage() {
       } else {
         alert("復元に失敗しました。");
       }
-    } catch (error) {
+    } catch {
       alert("復元中にエラーが発生しました。");
     } finally {
       setActionFile(null);

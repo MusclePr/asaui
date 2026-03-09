@@ -4,6 +4,10 @@ import { addToBypassList, addToWhitelist, setPlayerDisplayName } from "@/lib/sto
 import { execRcon } from "@/lib/docker";
 import { getServers } from "@/lib/config";
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
+
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -3,10 +3,7 @@
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
-interface PasswordInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  // すでに InputHTMLAttributes に含まれているため、追加の定義は不要ですが、
-  // 追加のプロパティが必要な場合はここに記述します。
-}
+type PasswordInputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 export const PasswordInput: React.FC<PasswordInputProps> = ({ className, ...props }) => {
   const [isVisible, setIsVisible] = useState(false);

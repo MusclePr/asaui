@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CLUSTER_DIR } from './cluster';
 import { getContainers, execRcon } from './docker';
+import { canExecuteRcon } from './serverState';
 
 export const DYNAMIC_CONFIG_FILE = path.join(CLUSTER_DIR, 'web', 'dynamicconfig.ini');
 export const DYNAMIC_CONFIG_APPLY_COMMAND = 'ForceUpdateDynamicConfig';
@@ -55,7 +56,7 @@ export function writeDynamicConfig(config: DynamicConfig): void {
 
 export async function broadcastDynamicConfigReload() {
   const containers = await getContainers();
-  const runningContainers = containers.filter(c => c.state === 'running' && c.isManaged);
+  const runningContainers = containers.filter(c => c.isManaged && canExecuteRcon(c));
   
   const results = await Promise.allSettled(
     runningContainers.map(c => execRcon(c.id, DYNAMIC_CONFIG_APPLY_COMMAND))

@@ -17,6 +17,16 @@ export interface CachedService {
   port: string;
 }
 
+type ComposeService = {
+  image?: unknown;
+  container_name?: unknown;
+  environment?: Record<string, unknown>;
+};
+
+type ComposeConfig = {
+  services?: Record<string, ComposeService>;
+};
+
 const CACHE_FILE = path.join(CLUSTER_DIR, ".services.cache.json");
 
 export async function runDockerCompose(args: string[], options?: { cwd?: string }) {
@@ -30,20 +40,22 @@ export async function runDockerCompose(args: string[], options?: { cwd?: string 
 
 export async function refreshServerCache(): Promise<CachedService[]> {
   const { stdout } = await runDockerCompose(["compose", "config", "--format", "json"]);
-  const config = JSON.parse(stdout);
+  const config = JSON.parse(stdout) as ComposeConfig;
   
   const services: CachedService[] = [];
   if (config.services) {
-    for (const [id, service] of Object.entries<any>(config.services)) {
+    for (const [id, service] of Object.entries(config.services)) {
       // イメージ名が "*/ark_ascended_docker:*" であることを条件にする
-      if (service.image && /.*\/ark_ascended_docker:.*/.test(service.image)) {
+      const image = typeof service.image === "string" ? service.image : "";
+      if (image && /.*\/ark_ascended_docker:.*/.test(image)) {
+        const env = service.environment ?? {};
         services.push({
           id,
-          containerName: service.container_name || id,
-          image: service.image,
-          sessionName: service.environment?.SESSION_NAME || "",
-          mapRaw: service.environment?.SERVER_MAP || "",
-          port: service.environment?.SERVER_PORT || "",
+          containerName: typeof service.container_name === "string" ? service.container_name : id,
+          image,
+          sessionName: typeof env.SESSION_NAME === "string" ? env.SESSION_NAME : "",
+          mapRaw: typeof env.SERVER_MAP === "string" ? env.SERVER_MAP : "",
+          port: typeof env.SERVER_PORT === "string" ? env.SERVER_PORT : "",
         });
       }
     }

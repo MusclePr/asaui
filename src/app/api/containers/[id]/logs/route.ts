@@ -1,8 +1,17 @@
 import { NextRequest } from 'next/server';
+import type { Readable } from 'node:stream';
 import { getContainerLogsStream } from '@/lib/docker';
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 
 export const dynamic = 'force-dynamic';
+
+type DockerStreamError = {
+  statusCode?: number;
+};
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
 
 export async function GET(
   request: NextRequest,
@@ -15,12 +24,12 @@ export async function GET(
   const containerId = id;
 
   try {
-    const logStream = await getContainerLogsStream(containerId).catch(err => {
-      if (err.statusCode === 404) {
+    const logStream = await getContainerLogsStream(containerId).catch((err: unknown) => {
+      if ((err as DockerStreamError)?.statusCode === 404) {
         throw new Error('CONTAINER_NOT_FOUND');
       }
       throw err;
-    }) as any;
+    }) as Readable;
 
     const responseStream = new ReadableStream({
       async start(controller) {
@@ -49,7 +58,7 @@ export async function GET(
           controller.close();
         });
 
-        logStream.on('error', (err: any) => {
+        logStream.on('error', (err: unknown) => {
           controller.error(err);
         });
 
@@ -70,14 +79,14 @@ export async function GET(
         'Connection': 'keep-alive',
       },
     });
-  } catch (error: any) {
-    if (error.message === 'CONTAINER_NOT_FOUND') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'CONTAINER_NOT_FOUND') {
       return new Response(JSON.stringify({ error: 'Container not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    console.error('Error streaming logs:', error);
+    console.error('Error streaming logs:', getErrorMessage(error));
     return new Response(JSON.stringify({ error: 'Failed to stream logs' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

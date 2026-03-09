@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
-import path from "node:path";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import {
   CLUSTER_COMPOSE_FILE,
   CLUSTER_DIR,
 } from "@/lib/cluster";
-import { parseEnvText, serializeEnv } from "@/lib/envfile";
 import { runDockerCompose } from "@/lib/compose";
 
 type Action = "up" | "down";
+
+type ComposeCommandError = {
+  stdout?: unknown;
+  stderr?: unknown;
+  code?: unknown;
+  message?: unknown;
+};
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
@@ -56,15 +61,16 @@ export async function POST(req: NextRequest) {
       stdout,
       stderr,
     });
-  } catch (error: any) {
-    const stdout = typeof error?.stdout === "string" ? error.stdout : "";
-    const stderr = typeof error?.stderr === "string" ? error.stderr : "";
+  } catch (error: unknown) {
+    const commandError = (error ?? {}) as ComposeCommandError;
+    const stdout = typeof commandError.stdout === "string" ? commandError.stdout : "";
+    const stderr = typeof commandError.stderr === "string" ? commandError.stderr : "";
     const exitCode =
-      typeof error?.code === "number" || typeof error?.code === "string" ? error.code : null;
+      typeof commandError.code === "number" || typeof commandError.code === "string" ? commandError.code : null;
 
     return NextResponse.json(
       {
-        error: error?.message || "Cluster compose failed",
+        error: typeof commandError.message === "string" ? commandError.message : "Cluster compose failed",
         action: undefined,
         command: "docker",
         cwd: CLUSTER_DIR,

@@ -7,6 +7,7 @@ import { Play, Square, RotateCcw, FileText, X, Terminal, Send } from "lucide-rea
 import { ContainerStatus } from "@/types";
 import LogStreamViewer from "@/components/LogStreamViewer";
 import { getApiUrl } from "@/lib/utils";
+import { canExecuteRcon, isContainerActionLocked, isPausedDetailedState, isPausingDetailedState } from "@/lib/serverState";
 
 type ClusterComposeResponse = {
   success?: boolean;
@@ -222,7 +223,7 @@ export default function Dashboard() {
       } else {
         setRconOutput(prev => [...prev, { type: 'err', text: data.error || "Failed to execute command" }]);
       }
-    } catch (err) {
+    } catch {
       setRconOutput(prev => [...prev, { type: 'err', text: "Network error occurred" }]);
     } finally {
       setRconLoading(false);
@@ -379,6 +380,8 @@ export default function Dashboard() {
                     c.detailedState === 'MAINTENANCE' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' :
                     c.detailedState === 'WAITING' || c.detailedState === 'WAIT_MASTER' || c.detailedState === 'WAIT_INSTALL' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' :
                     c.detailedState === 'UPDATE REQ' ? 'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20' :
+                    c.detailedState === 'PAUSING' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
+                    c.detailedState === 'PAUSED' ? 'bg-slate-500/10 text-slate-500 border border-slate-500/20' :
                     c.detailedState === 'STOPPING' || c.detailedState === 'STARTING' || c.isStopping ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
                     c.detailedState === 'RUNNING' || (c.state === 'running' && !c.detailedState) ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 
                     c.detailedState === 'STOPPED' || (c.state === 'exited' && !c.detailedState) ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
@@ -456,7 +459,7 @@ export default function Dashboard() {
                       <button
                         key={q.command}
                         onClick={() => handleQuickRcon(c.name, q.command, q.tooltip)}
-                        disabled={c.health !== 'healthy' || c.isStopping || actionsInProgress[c.id] || c.state === 'not_created' || quickRconInProgress[`${c.name}-${q.command}`]}
+                        disabled={!canExecuteRcon(c) || actionsInProgress[c.id] || c.state === 'not_created' || quickRconInProgress[`${c.name}-${q.command}`]}
                         className="w-8 h-8 flex items-center justify-center bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 disabled:opacity-40 transition-colors"
                         title={q.tooltip}
                       >
@@ -483,7 +486,7 @@ export default function Dashboard() {
                           onClick={() => handleAction(c.id, 'stop')}
                           className="p-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 flex justify-center disabled:opacity-40"
                           title="停止"
-                          disabled={actionsInProgress[c.id] || c.isStopping}
+                          disabled={actionsInProgress[c.id] || isContainerActionLocked(c)}
                         >
                           <Square className="h-4 w-4" />
                         </button>
@@ -492,7 +495,7 @@ export default function Dashboard() {
                         onClick={() => handleAction(c.id, 'restart')}
                         className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 flex justify-center disabled:opacity-40"
                         title={c.state === 'not_created' ? "コンテナが作成されていません" : "再起動"}
-                        disabled={actionsInProgress[c.id] || c.isStopping || c.state === 'not_created'}
+                        disabled={actionsInProgress[c.id] || isContainerActionLocked(c) || c.state === 'not_created'}
                       >
                         <RotateCcw className="h-4 w-4" />
                       </button>
@@ -502,8 +505,16 @@ export default function Dashboard() {
                           setRconOutput([]);
                         }}
                         className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 disabled:opacity-40 flex justify-center"
-                        title={c.state === 'not_created' ? "コンテナが作成されていません" : (c.health === 'healthy' ? "RCON コマンド" : (c.isStopping ? "停止処理中" : "RCON (サーバーが正常稼働中のみ利用可能)"))}
-                        disabled={c.health !== 'healthy' || c.isStopping || actionsInProgress[c.id] || c.state === 'not_created'}
+                        title={
+                          c.state === 'not_created'
+                            ? "コンテナが作成されていません"
+                            : isPausingDetailedState(c.detailedState)
+                              ? "休眠状態へ遷移中です"
+                              : isPausedDetailedState(c.detailedState)
+                                ? "休眠状態のため RCON を実行できません"
+                                : (canExecuteRcon(c) ? "RCON コマンド" : (c.isStopping ? "停止処理中" : "RCON (サーバーが正常稼働中のみ利用可能)"))
+                        }
+                        disabled={!canExecuteRcon(c) || actionsInProgress[c.id] || c.state === 'not_created'}
                       >
                         <Terminal className="h-4 w-4" />
                       </button>

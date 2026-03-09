@@ -1,16 +1,12 @@
 import fs from "node:fs";
-import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import {
-  CLUSTER_DIR,
   CLUSTER_COMMON_ENV_DEFAULT_FILE,
   CLUSTER_COMMON_ENV_OVERRIDE_FILE,
 } from "@/lib/cluster";
 import {
-  mergeEffectiveEnv,
   parseEnvText,
-  serializeEnv,
   validateAllModsCsv,
   validateExtra,
   validateMaxPlayers,
@@ -18,6 +14,10 @@ import {
   validatePassword,
 } from "@/lib/envfile";
 import { refreshServerCache } from "@/lib/compose";
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
 
 const OVERRIDE_KEYS = [
   "MAX_PLAYERS",
@@ -112,8 +112,8 @@ export async function GET() {
     };
 
     return NextResponse.json({ settings: body, defaults, effective });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -172,7 +172,7 @@ export async function PUT(req: NextRequest) {
     await refreshServerCache();
 
     return NextResponse.json({ success: true, effective });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

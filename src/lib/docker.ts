@@ -6,6 +6,7 @@ import { getServers, ARK_SAVE_BASE_DIR } from './config';
 import { getMapDisplayName, getBaseMapName } from './maps';
 import { getPlayerProfiles } from './storage';
 import { SIGNAL_DIR } from './cluster';
+import { canExecuteRcon } from './serverState';
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
@@ -62,8 +63,13 @@ export async function getContainers(): Promise<ContainerStatus[]> {
             isStopping = true;
           }
 
-          // If healthy, try to get player list
-          if (health === 'healthy') {
+          // Query players only when RCON is expected to respond.
+          if (canExecuteRcon({
+            state: container.State,
+            health,
+            isStopping,
+            detailedState,
+          })) {
             onlinePlayers = await getOnlinePlayers(container.Id);
           }
         } catch (e) {
@@ -202,7 +208,6 @@ export async function execRcon(containerIdOrName: string, command: string): Prom
       buffer = Buffer.concat([buffer, chunk]);
       
       while (buffer.length >= 8) {
-        const type = buffer[0];
         const size = buffer.readUInt32BE(4);
         
         if (buffer.length >= 8 + size) {
@@ -228,8 +233,7 @@ export async function execRcon(containerIdOrName: string, command: string): Prom
 
 export async function getContainerLogsStream(id: string) {
   const container = docker.getContainer(id);
-  const containerInfo = await container.inspect();
-  const isTty = containerInfo.Config.Tty;
+  await container.inspect();
 
   return await container.logs({
     stdout: true,

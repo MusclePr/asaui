@@ -26,12 +26,18 @@ function setCache(id: string, value: CurseForgeModInfo) {
   cache.set(id, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-function extractData(json: any): { name?: string; slug?: string; logoUrl?: string } {
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+function extractData(json: unknown): { name?: string; slug?: string; logoUrl?: string } {
   // Try a few shapes defensively.
-  const data = json?.data ?? json?.Data ?? json?.result ?? json;
-  const name = data?.name ?? data?.Name;
-  const slug = data?.slug ?? data?.Slug;
-  const logoUrl = data?.logo?.thumbnailUrl ?? data?.logo?.url;
+  const top = asRecord(json);
+  const data = asRecord(top.data ?? top.Data ?? top.result ?? top);
+  const logo = asRecord(data.logo);
+  const name = typeof (data.name ?? data.Name) === "string" ? String(data.name ?? data.Name) : undefined;
+  const slug = typeof (data.slug ?? data.Slug) === "string" ? String(data.slug ?? data.Slug) : undefined;
+  const logoUrl = typeof (logo.thumbnailUrl ?? logo.url) === "string" ? String(logo.thumbnailUrl ?? logo.url) : undefined;
   return { name, slug, logoUrl };
 }
 

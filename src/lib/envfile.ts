@@ -131,12 +131,18 @@ export function validateCronWithSupercronic(value: string): { ok: boolean; error
     fs.writeFileSync(tmpFile, `${value} true\n`, "utf8");
     execFileSync("supercronic", ["--no-reap", "-test", tmpFile]);
     return { ok: true };
-  } catch (e: any) {
-    if (e.code === "ENOENT") {
+  } catch (e: unknown) {
+    const err = e as { code?: unknown; stderr?: unknown; stdout?: unknown };
+    if (err.code === "ENOENT") {
       console.warn("supercronic not found, skipping cron validation");
       return { ok: true };
     }
-    const msg = e?.stderr?.toString() || e?.stdout?.toString() || String(e);
+    const msg =
+      typeof err.stderr === "string"
+        ? err.stderr
+        : typeof err.stdout === "string"
+          ? err.stdout
+          : String(e);
     return { ok: false, error: `無効な Cron 式です: ${msg}` };
   } finally {
     if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);

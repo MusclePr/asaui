@@ -3,6 +3,10 @@ import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { execRcon } from "@/lib/docker";
 import { getMainServerId } from "@/lib/config";
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
+
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
@@ -16,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     const output = await execRcon(targetId, command);
     return NextResponse.json({ output });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

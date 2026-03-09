@@ -2,7 +2,6 @@ import fs from "node:fs";
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import {
-  CLUSTER_DIR,
   CLUSTER_ENV_FILE,
   CLUSTER_ENV_TEMPLATE_FILE,
 } from "@/lib/cluster";
@@ -15,6 +14,10 @@ import {
   getAsaServerKeys,
 } from "@/lib/envfile";
 import { refreshServerCache } from "@/lib/compose";
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
 
 function ensureEnvExists() {
   if (fs.existsSync(CLUSTER_ENV_FILE)) return;
@@ -32,8 +35,8 @@ export async function GET() {
     ensureEnvExists();
     const env = parseEnvText(fs.readFileSync(CLUSTER_ENV_FILE, "utf8"));
     return NextResponse.json({ env });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -110,7 +113,7 @@ export async function POST(req: NextRequest) {
     await refreshServerCache();
 
     return NextResponse.json({ success: true, env: newEnv });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -4,6 +4,10 @@ import { getContainers } from "@/lib/docker";
 import { getServers } from "@/lib/config";
 import { refreshServerCache } from "@/lib/compose";
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
+
 export async function GET(request: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
@@ -18,8 +22,8 @@ export async function GET(request: NextRequest) {
     }
     const containers = await getContainers();
     return NextResponse.json(containers);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in /api/containers:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

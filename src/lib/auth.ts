@@ -1,6 +1,18 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
+type RoleUser = {
+  id: string;
+  name: string;
+  role: "admin" | "simple";
+};
+
+function getRoleFromUser(user: unknown): string | undefined {
+  if (typeof user !== "object" || user === null || !("role" in user)) return undefined;
+  const role = (user as { role?: unknown }).role;
+  return typeof role === "string" ? role : undefined;
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -10,10 +22,12 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (credentials?.password === process.env.ASAUI_PASSWORD) {
-          return { id: "admin", name: "Administrator", role: "admin" } as any;
+          const user: RoleUser = { id: "admin", name: "Administrator", role: "admin" };
+          return user;
         }
         if (process.env.ASAUI_SIMPLE_PASSWORD && credentials?.password === process.env.ASAUI_SIMPLE_PASSWORD) {
-          return { id: "simple", name: "Viewer", role: "simple" } as any;
+          const user: RoleUser = { id: "simple", name: "Viewer", role: "simple" };
+          return user;
         }
         return null;
       },
@@ -21,14 +35,15 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token.role = (user as any).role;
+      const role = getRoleFromUser(user);
+      if (role) {
+        token.role = role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).role = token.role;
+        session.user.role = typeof token.role === "string" ? token.role : undefined;
       }
       return session;
     },

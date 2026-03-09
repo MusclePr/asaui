@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackupStream } from "@/lib/backups";
-import path from "node:path";
 
 export async function GET(
   request: NextRequest,
@@ -14,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    return new NextResponse(stream as any, {
+    return new NextResponse(stream as unknown as BodyInit, {
       headers: {
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Content-Type": "application/gzip",

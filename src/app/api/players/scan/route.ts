@@ -6,6 +6,19 @@ import { getBaseMapName } from "@/lib/maps";
 import { getBypassList, getPlayerProfiles, getWhitelist, ensurePlayerProfiles } from "@/lib/storage";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 
+type PlayerEntry = {
+  name: string;
+  displayName?: string;
+  eosId: string;
+  lastLogin: string;
+  isWhitelisted: boolean;
+  isBypassed: boolean;
+};
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error";
+}
+
 export async function GET() {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
@@ -14,7 +27,7 @@ export async function GET() {
     const whitelist = getWhitelist();
     const bypassList = getBypassList();
     const profiles = getPlayerProfiles();
-    const playersMap = new Map<string, any>();
+    const playersMap = new Map<string, PlayerEntry>();
     const allFoundEosIds = new Set<string>();
 
     const servers = getServers();
@@ -37,7 +50,8 @@ export async function GET() {
         const lastLogin = stats.mtime.toISOString().replace("T", " ").split(".")[0];
 
         const displayName = profiles[eosId]?.displayName?.trim() || undefined;
-        if (!playersMap.has(eosId) || new Date(lastLogin) > new Date(playersMap.get(eosId).lastLogin)) {
+        const current = playersMap.get(eosId);
+        if (!current || new Date(lastLogin) > new Date(current.lastLogin)) {
           playersMap.set(eosId, {
             name: eosId, // Ideal: Extract from file
             displayName,
@@ -99,7 +113,7 @@ export async function GET() {
     }
 
     return NextResponse.json(Array.from(playersMap.values()));
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import Editor from "@monaco-editor/react";
 import AppLayout from "@/components/AppLayout";
-import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff, ShieldAlert, ChevronDown, ChevronRight, Eye, EyeOff, Zap, Settings2, Info, Users } from "lucide-react";
+import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff, ShieldAlert, ChevronRight, Eye, EyeOff, Zap, Settings2, Info, Users } from "lucide-react";
 import { PasswordInput } from "@/components/PasswordInput";
 import { getApiUrl } from "@/lib/utils";
 import { ASA_MAP_NAMES } from "@/lib/maps";
@@ -59,6 +59,10 @@ function parseModsCsv(csv: string): string[] {
 
 function joinModsCsv(ids: string[]): string {
   return ids.join(",");
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export default function ClusterSettingsPage() {
@@ -134,8 +138,8 @@ export default function ClusterSettingsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `${filename} の読み込みに失敗しました`);
       setIniContent(data.content || "");
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setLoadingIni(false);
     }
@@ -158,8 +162,8 @@ export default function ClusterSettingsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `${filename} の保存に失敗しました`);
       setMessage(data.message);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setSavingIni(false);
     }
@@ -229,8 +233,8 @@ export default function ClusterSettingsPage() {
         }
       }
 
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -247,17 +251,6 @@ export default function ClusterSettingsPage() {
       fetchIni("Game.ini");
     }
   }, [activeTab, anyServerRunning]);
-
-  useEffect(() => {
-    (async () => {
-      for (const id of allModIds) {
-        // sequential to avoid API burst
-        // eslint-disable-next-line no-await-in-loop
-        await fetchModInfo(id);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allModsCsv]);
 
   const validatePassword = (value: string, label: string): string | null => {
     if (value.length > 32) return `${label} は 32 文字以内で指定してください`;
@@ -308,7 +301,6 @@ export default function ClusterSettingsPage() {
     }
 
     return null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, modsCsv, allModsCsv, envConfig]);
 
   const saveAll = async () => {
@@ -355,8 +347,8 @@ export default function ClusterSettingsPage() {
 
       setMessage("設定を保存しました。反映させるには「変更を適用」をクリックしてください。");
       setNeedsApply(true);
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -377,8 +369,8 @@ export default function ClusterSettingsPage() {
       
       setOriginalDynamicConfig(dynamicConfig);
       setMessage(data.message || "動的設定を保存し、各サーバーへの反映リクエストを送信しました。");
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setSavingDynamic(false);
     }
@@ -399,8 +391,8 @@ export default function ClusterSettingsPage() {
       if (!res.ok) throw new Error(data?.error || "適応に失敗しました");
       setMessage("設定を適応しました（クラスターを起動/再起動しました）");
       setNeedsApply(false);
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setApplying(false);
     }
@@ -413,7 +405,7 @@ export default function ClusterSettingsPage() {
     }));
   };
 
-  const fetchModInfo = async (id: string) => {
+  const fetchModInfo = useCallback(async (id: string) => {
     if (modInfo[id]) return;
     try {
       const res = await fetch(getApiUrl(`/api/curseforge/mod/${id}`), { cache: "no-store" });
@@ -434,7 +426,16 @@ export default function ClusterSettingsPage() {
         [id]: { id },
       }));
     }
-  };
+  }, [modInfo]);
+
+  useEffect(() => {
+    (async () => {
+      for (const id of allModIds) {
+        // sequential to avoid API burst
+        await fetchModInfo(id);
+      }
+    })();
+  }, [allModIds, fetchModInfo]);
 
   const addMod = async () => {
     setError(null);
@@ -977,6 +978,8 @@ export default function ClusterSettingsPage() {
                                 <td className="py-2 px-4 font-mono font-bold text-xs">{id}</td>
                                 <td className={`py-2 px-4 ${!isEnabled ? "line-through" : ""}`}>
                                   <div className="flex items-center gap-2">
+                                    {/* External mod icon hosts are dynamic; keep native img to avoid Next/Image domain config churn. */}
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                       src={modInfo[id]?.logoUrl || placeholderUrl}
                                       alt={modInfo[id]?.name ? `${modInfo[id]?.name} icon` : "mod icon"}
@@ -1264,7 +1267,7 @@ export default function ClusterSettingsPage() {
                   <div className="text-sm space-y-1">
                     <p className="font-bold">{activeTab === "ini-gus" ? "GameUserSettings.ini" : "Game.ini"} エディタ</p>
                     {anyServerRunning ? (
-                      <p>サーバーが起動中のため、現在は閲覧のみ可能です。編集するには全サーバーを停止してください。</p>
+                      <p>サーバーが稼働中（PAUSED 含む）のため、現在は閲覧のみ可能です。編集するには全サーバーを停止してください。</p>
                     ) : (
                       <p>
                         ファイルを直接編集します。
