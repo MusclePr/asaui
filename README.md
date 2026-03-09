@@ -10,7 +10,7 @@ ARK: Ascended Docker 用の専用 Web 管理 UI です。
 - **プレイヤー情報:** 各マップのセーブデータを解析し、最終ログイン日時を表示。
 - **ホワイトリスト管理:** EOS ID とニックネームのペアを JSON でシンプルに管理。
 - **RCON コンソール:** コンテナ内コマンド経由で RCON 操作を実行。
-- **サーバー設定:** クラスター共通設定（`common.env`）を UI から安全に編集。
+- **サーバー設定:** クラスター共通設定（`.common.env`）を UI から安全に編集。
 
 ## セットアップ
 
@@ -67,7 +67,7 @@ sed -E "s/^NEXTAUTH_SECRET=.*/NEXTAUTH_SECRET=$(openssl rand -base64 32)/" -i .e
 サーバーの設定（環境変数）は、以下のファイル群によって管理されます。
 
 編集可能なファイル：
-- **[cluster/common.env](cluster/common.env)**: `asaui` の UI から編集・保存される上書き設定。
+- **[cluster/.common.env](cluster/common.env)**: `asaui` の UI から編集・保存される上書き設定。
 - **[cluster/.env](cluster/.env)**: マップ名やセッション名などの設定を記述する環境変数ファイル。
 - **[cluster/web/dynamicconfig.ini](cluster/web/dynamicconfig.ini)**: ダイナミック構成ファイル。
 

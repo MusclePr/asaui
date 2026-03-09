@@ -112,7 +112,7 @@ EOF
 # テンプレートのレイアウトに沿ってキーにマッチする既存の設定値があれば値を更新します。
 # ファイル自体が無ければ、テンプレートからコピーします。
 update_user_file "$TEMPLATE_DIR/defaults/template.env" "$CLUSTER_DIR/.env"
-update_user_file "$TEMPLATE_DIR/defaults/common.env" "$CLUSTER_DIR/common.env"
+update_user_file "$TEMPLATE_DIR/defaults/common.env" "$CLUSTER_DIR/.common.env"
 update_user_file "$TEMPLATE_DIR/web/dynamicconfig.ini" "$CLUSTER_DIR/web/dynamicconfig.ini"
 
 # マップの数は、$CLUSTER_DIR/.env ファイルの ASA0_SERVER_MAP から ASA9_SERVER_MAP までの変数の有効な定義を、ASA0_CLUSTER_NODES があればそれを上限に作成します。

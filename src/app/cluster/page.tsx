@@ -79,7 +79,7 @@ export default function ClusterSettingsPage() {
     return containers.some(c => c.state === "running");
   }, [containers]);
 
-  // Common Settings (formerly .cluster, now .common.env)
+  // Common Settings (.common.env)
   const [settings, setSettings] = useState<Settings>({
     MAX_PLAYERS: 10,
     SERVER_PASSWORD: "",
