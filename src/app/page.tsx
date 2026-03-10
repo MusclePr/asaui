@@ -380,8 +380,7 @@ export default function Dashboard() {
                     c.detailedState === 'MAINTENANCE' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' :
                     c.detailedState === 'WAITING' || c.detailedState === 'WAIT_MASTER' || c.detailedState === 'WAIT_INSTALL' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' :
                     c.detailedState === 'UPDATE REQ' ? 'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20' :
-                    c.detailedState === 'PAUSING' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
-                    c.detailedState === 'PAUSED' ? 'bg-slate-500/10 text-slate-500 border border-slate-500/20' :
+                    c.detailedState === 'PAUSING' || c.detailedState === 'PAUSED' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
                     c.detailedState === 'STOPPING' || c.detailedState === 'STARTING' || c.isStopping ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
                     c.detailedState === 'RUNNING' || (c.state === 'running' && !c.detailedState) ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 
                     c.detailedState === 'STOPPED' || (c.state === 'exited' && !c.detailedState) ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
