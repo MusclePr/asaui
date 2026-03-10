@@ -4,6 +4,15 @@ import path from "node:path";
 
 export type EnvMap = Record<string, string>;
 
+export const MAX_ASA_SERVER_SLOTS = 10;
+
+export function getClusterNodeCount(env: EnvMap): number {
+  const raw = env.ASA0_CLUSTER_NODES;
+  const parsed = Number.parseInt(raw ?? "1", 10);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(MAX_ASA_SERVER_SLOTS, Math.max(1, parsed));
+}
+
 export function parseEnvText(text: string): EnvMap {
   const map: EnvMap = {};
   for (const rawLine of text.split("\n")) {
@@ -151,7 +160,8 @@ export function validateCronWithSupercronic(value: string): { ok: boolean; error
 
 export function calculateSlavePorts(env: EnvMap): string {
   const ports: string[] = [];
-  for (let i = 1; i < 10; i++) {
+  const clusterNodeCount = getClusterNodeCount(env);
+  for (let i = 1; i < clusterNodeCount; i++) {
     const map = env[`ASA${i}_SERVER_MAP`];
     const port = env[`ASA${i}_SERVER_PORT`];
     if (map && port) {

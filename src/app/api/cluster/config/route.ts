@@ -12,6 +12,7 @@ import {
   calculateSlavePorts,
   CLUSTER_CONFIG_KEYS,
   getAsaServerKeys,
+  getClusterNodeCount,
 } from "@/lib/envfile";
 import { refreshServerCache } from "@/lib/compose";
 
@@ -72,8 +73,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const clusterNodeCount = getClusterNodeCount(newEnv);
+
     // Update server settings (Map and Webhook)
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < clusterNodeCount; i++) {
       const keys = getAsaServerKeys(i);
       // Map
       if (updates[keys.MAP] !== undefined) {
@@ -92,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // Validate map duplication
     const mapCounts: Record<string, number> = {};
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < clusterNodeCount; i++) {
       const keys = getAsaServerKeys(i);
       const map = newEnv[keys.MAP];
       if (map) {

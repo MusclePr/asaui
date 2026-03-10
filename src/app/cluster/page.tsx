@@ -25,6 +25,14 @@ type EnvConfig = Record<string, string>;
 
 type DynamicConfig = Record<string, string>;
 
+const MAX_ASA_SERVER_SLOTS = 10;
+
+function resolveClusterNodeCount(envConfig: EnvConfig): number {
+  const parsed = Number.parseInt(envConfig.ASA0_CLUSTER_NODES ?? "1", 10);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(MAX_ASA_SERVER_SLOTS, Math.max(1, parsed));
+}
+
 const DYNAMIC_CONFIG_DESCRIPTIONS: Record<string, string> = {
   BabyCuddleIntervalMultiplier: '赤ちゃんのケア（刷り込み）の間隔を調整します。値が小さいほど間隔が短くなります。',
   BabyImprintAmountMultiplier: '1回のケアで上昇する刷り込み値の倍率を調整します。',
@@ -108,6 +116,8 @@ export default function ClusterSettingsPage() {
 
   // Cluster/Infra Settings (.env)
   const [envConfig, setEnvConfig] = useState<EnvConfig>({});
+
+  const clusterNodeCount = useMemo(() => resolveClusterNodeCount(envConfig), [envConfig]);
 
   // Dynamic Settings (dynamicconfig.ini)
   const [dynamicConfig, setDynamicConfig] = useState<DynamicConfig>({});
@@ -737,7 +747,7 @@ export default function ClusterSettingsPage() {
                 </button>
               </div>
               <div className="grid gap-4">
-                {Array.from({ length: 10 }).map((_, i) => {
+                {Array.from({ length: clusterNodeCount }).map((_, i) => {
                   const mapKey = `ASA${i}_SERVER_MAP`;
                   const mapValue = envConfig[mapKey];
                   if (mapValue === undefined) return null;
