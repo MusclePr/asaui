@@ -162,7 +162,7 @@ export default function PlayersPage() {
         <form onSubmit={handleRegister} className="bg-card border rounded-lg p-4 space-y-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Info className="h-4 w-4" />
-            <p>バイパスリストは即時反映されますが、ホワイトリストはサーバーの再起動が必要です。</p>
+            <p>バイパスリストのみ、RUNNING 状態のサーバーだけ即時反映されますが、それ以外はサーバーの再起動が必要です。</p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">

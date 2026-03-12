@@ -9,6 +9,8 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { getApiUrl } from "@/lib/utils";
 import { ASA_MAP_NAMES } from "@/lib/maps";
 import { ContainerStatus } from "@/types";
+import cronstrue from "cronstrue";
+import "cronstrue/locales/ja";
 
 type Settings = {
   MAX_PLAYERS: number;
@@ -71,6 +73,25 @@ function joinModsCsv(ids: string[]): string {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function CronDesc({ expression }: { expression: string }) {
+  let desc: string;
+  let isError = false;
+  const style = "text-xs mt-1 px-1 py-1 font-medium";
+
+  try {
+    desc = cronstrue.toString(expression, { locale: "ja" });
+  } catch {
+    desc = "無効な Cron 形式です";
+    isError = true;
+  }
+
+  return (
+    <p className={style + (isError ? " text-destructive" : " text-muted-foreground")}>
+      {isError ? desc : `設定内容：${desc}`}
+    </p>
+  );
 }
 
 export default function ClusterSettingsPage() {
@@ -690,6 +711,9 @@ export default function ClusterSettingsPage() {
                                 : "bg-muted opacity-50 cursor-not-allowed"
                             }`}
                           />
+                          {envConfig.ASA0_AUTO_BACKUP_ENABLED === "true" && (
+                            <CronDesc expression={envConfig.ASA0_AUTO_BACKUP_CRON_EXPRESSION || ""} />
+                          )}
                         </div>
                       </div>
 
@@ -716,6 +740,9 @@ export default function ClusterSettingsPage() {
                                 : "bg-muted opacity-50 cursor-not-allowed"
                             }`}
                           />
+                          {envConfig.ASA0_AUTO_UPDATE_ENABLED === "true" && (
+                            <CronDesc expression={envConfig.ASA0_AUTO_UPDATE_CRON_EXPRESSION || ""} />
+                          )}
                         </div>
                       </div>
 
@@ -1176,7 +1203,7 @@ export default function ClusterSettingsPage() {
 
             {activeTab === "dynamic" && (
               <div className="space-y-6">
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3">
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 dark:text-amber-200 rounded-lg flex items-start gap-3">
                   <Zap className="h-5 w-5 text-amber-600 mt-0.5" />
                   <div className="text-sm space-y-1">
                     <p className="font-bold text-amber-800 dark:text-amber-200">動的設定（即時反映領域）</p>
