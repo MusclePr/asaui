@@ -510,6 +510,45 @@ export default function ClusterSettingsPage() {
     setAllModIds(list);
   };
 
+  const handleMultiplierChange = (key: string, value: string) => {
+    let num = Number.parseFloat(value);
+    if (Number.isNaN(num)) {
+      setDynamicConfig(prev => ({ ...prev, [key]: value }));
+      return;
+    }
+
+    if (num < 0.000001) num = 0.000001;
+    setDynamicConfig(prev => ({ ...prev, [key]: num.toString() }));
+  };
+
+  const handleMultiplierKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, key: string) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+
+    e.preventDefault();
+    const currentVal = Number.parseFloat(dynamicConfig[key] || "1.0");
+    let newVal: number;
+
+    if (e.key === "ArrowUp") {
+      if (currentVal < 1.0) {
+        newVal = Math.min(1.0, currentVal * 2.0);
+      } else {
+        newVal = currentVal + 0.1;
+      }
+    } else {
+      // ArrowDown
+      if (currentVal <= 1.0) {
+        newVal = currentVal * 0.5;
+      } else {
+        newVal = Math.max(1.0, currentVal - 0.1);
+      }
+    }
+
+    if (newVal < 0.000001) newVal = 0.000001;
+    // Round to avoid floating point issues (e.g. 0.1 + 0.2 = 0.30000000000000004)
+    const rounded = Math.round(newVal * 1000000) / 1000000;
+    setDynamicConfig(prev => ({ ...prev, [key]: rounded.toString() }));
+  };
+
   const resetMaxPlayers = () => {
     setSettings((prev) => ({
       ...prev,
@@ -1241,7 +1280,8 @@ export default function ClusterSettingsPage() {
                             type="number"
                             step="0.1"
                             value={dynamicConfig[key]}
-                            onChange={(e) => setDynamicConfig(prev => ({ ...prev, [key]: e.target.value }))}
+                            onChange={(e) => handleMultiplierChange(key, e.target.value)}
+                            onKeyDown={(e) => handleMultiplierKeyDown(e, key)}
                             className="w-full px-3 py-2 border rounded bg-background font-mono text-sm"
                           />
                         </div>
