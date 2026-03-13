@@ -27,6 +27,21 @@ type EnvConfig = Record<string, string>;
 
 type DynamicConfig = Record<string, string>;
 
+type IniConflictChunk = {
+  index: number;
+  base: string;
+  current: string;
+  yours: string;
+};
+
+type IniConflictState = {
+  mergedPreview: string;
+  currentContent: string;
+  currentRevision: string;
+  yoursContent: string;
+  chunks: IniConflictChunk[];
+};
+
 const MAX_ASA_SERVER_SLOTS = 10;
 
 function resolveClusterNodeCount(envConfig: EnvConfig): number {
@@ -108,10 +123,6 @@ export default function ClusterSettingsPage() {
 
   const [containers, setContainers] = useState<ContainerStatus[]>([]);
 
-  const anyServerRunning = useMemo(() => {
-    return containers.some(c => c.state === "running");
-  }, [containers]);
-
   // Common Settings (.common.env)
   const [settings, setSettings] = useState<Settings>({
     MAX_PLAYERS: 10,
@@ -147,8 +158,14 @@ export default function ClusterSettingsPage() {
 
   // Raw INI States
   const [iniContent, setIniContent] = useState("");
+  const [iniBaseContent, setIniBaseContent] = useState("");
+  const [iniRevision, setIniRevision] = useState("");
+  const [iniConflict, setIniConflict] = useState<IniConflictState | null>(null);
   const [loadingIni, setLoadingIni] = useState(false);
   const [savingIni, setSavingIni] = useState(false);
+
+  const hasIniConflict = iniConflict !== null;
+  const canResolveIniConflict = hasIniConflict && iniContent !== iniConflict.yoursContent;
 
   const [allModIds, setAllModIds] = useState<string[]>([]);
   const [enabledModIds, setEnabledModIds] = useState<string[]>([]);
@@ -169,6 +186,9 @@ export default function ClusterSettingsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `${filename} の読み込みに失敗しました`);
       setIniContent(data.content || "");
+      setIniBaseContent(data.content || "");
+      setIniRevision(data.revision || "");
+      setIniConflict(null);
     } catch (e: unknown) {
       setError(getErrorMessage(e));
     } finally {
@@ -176,11 +196,16 @@ export default function ClusterSettingsPage() {
     }
   };
 
-  const saveIni = async (filename: "GameUserSettings.ini" | "Game.ini") => {
-    if (anyServerRunning) {
-      setError("サーバー起動中は保存できません");
+  const saveIni = async (filename: "GameUserSettings.ini" | "Game.ini", resolveConflict = false) => {
+    if (hasIniConflict && !resolveConflict) {
+      setError("競合を解消するまで通常保存はできません。差分を確認して「競合解消して保存」を実行してください。");
       return;
     }
+    if (resolveConflict && !canResolveIniConflict) {
+      setError("競合を解消してから保存してください。少なくとも競合時の内容から編集が必要です。");
+      return;
+    }
+
     setSavingIni(true);
     setError(null);
     setMessage(null);
@@ -188,10 +213,34 @@ export default function ClusterSettingsPage() {
       const res = await fetch(getApiUrl(`/api/cluster/config-file/${filename}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: iniContent }),
+        body: JSON.stringify({
+          content: iniContent,
+          baseContent: iniBaseContent,
+          baseRevision: iniRevision,
+        }),
       });
       const data = await res.json();
+
+      if (res.status === 409 && data.status === "conflict") {
+        setIniConflict({
+          mergedPreview: data.conflict?.mergedPreview || "",
+          currentContent: data.content || "",
+          currentRevision: data.revision || "",
+          yoursContent: iniContent,
+          chunks: Array.isArray(data.conflict?.chunks) ? data.conflict.chunks : [],
+        });
+        setIniBaseContent(data.content || "");
+        setIniRevision(data.revision || "");
+        setError(data.message || "外部更新との競合を検出しました。競合を解消するまで保存できません。");
+        return;
+      }
+
       if (!res.ok) throw new Error(data.error || `${filename} の保存に失敗しました`);
+
+      setIniContent(data.content || iniContent);
+      setIniBaseContent(data.content || iniContent);
+      setIniRevision(data.revision || iniRevision);
+      setIniConflict(null);
       setMessage(data.message);
     } catch (e: unknown) {
       setError(getErrorMessage(e));
@@ -281,7 +330,7 @@ export default function ClusterSettingsPage() {
     } else if (activeTab === "ini-game") {
       fetchIni("Game.ini");
     }
-  }, [activeTab, anyServerRunning]);
+  }, [activeTab]);
 
   const validatePassword = (value: string, label: string): string | null => {
     if (value.length > 32) return `${label} は 32 文字以内で指定してください`;
@@ -611,11 +660,16 @@ export default function ClusterSettingsPage() {
               </button>
             ) : (
               <button
-                onClick={() => saveIni(activeTab === "ini-gus" ? "GameUserSettings.ini" : "Game.ini")}
+                onClick={() =>
+                  saveIni(
+                    activeTab === "ini-gus" ? "GameUserSettings.ini" : "Game.ini",
+                    hasIniConflict
+                  )
+                }
                 className="px-4 py-2 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 flex items-center gap-2 shadow-lg shadow-primary/20"
-                disabled={savingIni || loadingIni || anyServerRunning}
+                disabled={savingIni || loadingIni || (hasIniConflict && !canResolveIniConflict)}
               >
-                <Save className="h-4 w-4" /> 保存
+                <Save className="h-4 w-4" /> {hasIniConflict ? "競合解消して保存" : "保存"}
               </button>
             )}
           </div>
@@ -1339,16 +1393,14 @@ export default function ClusterSettingsPage() {
 
             {(activeTab === "ini-gus" || activeTab === "ini-game") && (
               <div className="space-y-6">
-                <div className={`p-4 rounded-lg border flex items-start gap-3 ${anyServerRunning ? "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200" : "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200"}`}>
+                <div className={`p-4 rounded-lg border flex items-start gap-3 ${hasIniConflict ? "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200" : "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200"}`}>
                   <Info className="h-5 w-5 mt-0.5" />
                   <div className="text-sm space-y-1">
                     <p className="font-bold">{activeTab === "ini-gus" ? "GameUserSettings.ini" : "Game.ini"} エディタ</p>
-                    {anyServerRunning ? (
-                      <p>サーバーが稼働中（PAUSED 含む）のため、現在は閲覧のみ可能です。編集するには全サーバーを停止してください。</p>
+                    {hasIniConflict ? (
+                      <p>外部更新との競合を検出しました。別ペインの差分を確認し、解消するまで保存はできません。</p>
                     ) : (
-                      <p>
-                        ファイルを直接編集します。
-                      </p>
+                      <p>常に編集できます。保存内容は次回起動時に反映されます。</p>
                     )}
                   </div>
                 </div>
@@ -1366,7 +1418,7 @@ export default function ClusterSettingsPage() {
                       value={iniContent}
                       onChange={(value) => setIniContent(value || "")}
                       options={{
-                        readOnly: anyServerRunning,
+                        readOnly: false,
                         minimap: { enabled: false },
                         fontSize: 14,
                         automaticLayout: true,
@@ -1379,6 +1431,51 @@ export default function ClusterSettingsPage() {
                     />
                   )}
                 </div>
+
+                {hasIniConflict && iniConflict && (
+                  <div className="bg-card border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-red-700 dark:text-red-300">競合差分</p>
+                      <p className="text-xs text-muted-foreground">左: 現在のファイル内容 / 右: 競合時に送信した内容。必要に応じて上のエディタを修正して「競合解消して保存」を実行してください。</p>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold uppercase text-muted-foreground">Current (server)</p>
+                        <pre className="h-64 overflow-auto rounded border bg-muted p-3 text-xs font-mono whitespace-pre-wrap">{iniConflict.currentContent}</pre>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold uppercase text-muted-foreground">Yours (last submit)</p>
+                        <pre className="h-64 overflow-auto rounded border bg-muted p-3 text-xs font-mono whitespace-pre-wrap">{iniConflict.yoursContent}</pre>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Conflict hunks: {iniConflict.chunks.length}</p>
+                      <div className="space-y-2 max-h-64 overflow-auto">
+                        {iniConflict.chunks.map((chunk) => (
+                          <div key={chunk.index} className="rounded border p-3 space-y-2 bg-background">
+                            <p className="text-xs font-semibold">Hunk #{chunk.index + 1}</p>
+                            <div className="grid gap-2 md:grid-cols-3">
+                              <div>
+                                <p className="text-[11px] font-bold text-muted-foreground mb-1">Base</p>
+                                <pre className="text-[11px] whitespace-pre-wrap font-mono bg-muted rounded p-2">{chunk.base}</pre>
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-bold text-muted-foreground mb-1">Current</p>
+                                <pre className="text-[11px] whitespace-pre-wrap font-mono bg-muted rounded p-2">{chunk.current}</pre>
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-bold text-muted-foreground mb-1">Yours</p>
+                                <pre className="text-[11px] whitespace-pre-wrap font-mono bg-muted rounded p-2">{chunk.yours}</pre>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
