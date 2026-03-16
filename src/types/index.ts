@@ -11,6 +11,7 @@ export interface ContainerStatus {
   mapRaw?: string; // Raw name (e.g. TheIsland_WP)
   sessionName?: string;
   isManaged?: boolean; // Whether it's an ARK server we manage
+  autoPauseEnabled?: boolean; // Whether AUTO_PAUSE is enabled for this server node
   onlinePlayers?: { name: string; eosId: string }[]; // List of currently connected players
   offlinePlayers?: { name: string; eosId: string; lastLogin: string }[]; // List of players with save data but not online
 }

@@ -10,6 +10,28 @@ import { canExecuteRcon } from './serverState';
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
+function getAutoPauseDisabledLockPath(port: string | number): string {
+  return path.join(SIGNAL_DIR, `server_${port}`, 'autopause', 'disabled.lock');
+}
+
+async function resolveServerPortByContainerRef(containerIdOrName: string): Promise<string> {
+  const servers = getServers();
+  const direct = servers.find(
+    (s) => s.containerName === containerIdOrName || s.id === containerIdOrName
+  );
+  if (direct?.port) return String(direct.port);
+
+  const inspected = await docker.getContainer(containerIdOrName).inspect();
+  const containerName = inspected.Name?.replace(/^\//, '') || '';
+  const matched = servers.find(
+    (s) => s.containerName === containerName || s.id === containerName
+  );
+  if (!matched?.port) {
+    throw new Error(`Unable to resolve server port for container: ${containerIdOrName}`);
+  }
+  return String(matched.port);
+}
+
 export async function getContainers(): Promise<ContainerStatus[]> {
   const containers = await docker.listContainers({ all: true });
   const definedServers = getServers();
@@ -23,6 +45,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
     );
 
     let detailedState: string | undefined = undefined;
+    let autoPauseEnabled: boolean | undefined = undefined;
     if (server.port && signalsExist) {
       const statusFile = path.join(SIGNAL_DIR, `server_${server.port}`, 'status');
       if (fs.existsSync(statusFile)) {
@@ -31,6 +54,13 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         } catch (e) {
           console.warn(`Failed to read status file for ${server.id}:`, e);
         }
+      }
+
+      try {
+        const lockPath = getAutoPauseDisabledLockPath(server.port);
+        autoPauseEnabled = !fs.existsSync(lockPath);
+      } catch (e) {
+        console.warn(`Failed to read auto pause lock for ${server.id}:`, e);
       }
     }
 
@@ -90,6 +120,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         health,
         isStopping,
         detailedState,
+        autoPauseEnabled,
         onlinePlayers,
         offlinePlayers,
         map: getMapDisplayName(server.map),
@@ -106,6 +137,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         state: "not_created",
         status: "Not created",
         detailedState,
+        autoPauseEnabled,
         offlinePlayers,
         map: getMapDisplayName(server.map),
         mapRaw: server.map,
@@ -122,6 +154,30 @@ export async function manageContainer(id: string, action: string) {
     case "start": await container.start(); break;
     case "stop": await container.stop(); break;
     case "restart": await container.restart(); break;
+    default:
+      throw new Error(`Unsupported container action: ${action}`);
+  }
+}
+
+export async function setContainerAutoPauseEnabled(
+  containerIdOrName: string,
+  enabled: boolean
+): Promise<void> {
+  const port = await resolveServerPortByContainerRef(containerIdOrName);
+  const lockPath = getAutoPauseDisabledLockPath(port);
+
+  if (enabled) {
+    // ON means AUTO_PAUSE is allowed, so remove disable lock.
+    if (fs.existsSync(lockPath)) {
+      fs.unlinkSync(lockPath);
+    }
+    return;
+  }
+
+  // OFF means AUTO_PAUSE is prohibited, so create disable lock.
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+  if (!fs.existsSync(lockPath)) {
+    fs.writeFileSync(lockPath, '', 'utf8');
   }
 }
 

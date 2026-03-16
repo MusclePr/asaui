@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import AppLayout from "@/components/AppLayout";
 import { Play, Square, RotateCcw, FileText, X, Terminal, Send } from "lucide-react";
@@ -42,6 +42,7 @@ export default function Dashboard() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "admin";
   const [containers, setContainers] = useState<ContainerStatus[]>([]);
+  const [autoPauseFeatureEnabled, setAutoPauseFeatureEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [clusterBusy, setClusterBusy] = useState<"up" | "down" | null>(null);
   const [actionsInProgress, setActionsInProgress] = useState<Record<string, boolean>>({});
@@ -53,7 +54,22 @@ export default function Dashboard() {
   const [rconLoading, setRconLoading] = useState(false);
   const rconScrollRef = useRef<HTMLDivElement>(null);
 
-  const fetchStatus = async (forceRefresh = false) => {
+  const fetchAutoPauseFeatureFlag = useCallback(async () => {
+    try {
+      const res = await fetch(getApiUrl("/api/cluster/env"), { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok) {
+        setAutoPauseFeatureEnabled(
+          String(data?.effective?.AUTO_PAUSE_ENABLED ?? "").toLowerCase() === "true"
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setAutoPauseFeatureEnabled(false);
+    }
+  }, []);
+
+  const fetchStatus = useCallback(async (forceRefresh = false) => {
     try {
       const res = await fetch(getApiUrl(`/api/containers${forceRefresh ? "?refresh=true" : ""}`));
       const data = await res.json();
@@ -67,13 +83,22 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const refreshDashboard = useCallback(async (forceRefresh = false) => {
+    await Promise.all([
+      fetchStatus(forceRefresh),
+      fetchAutoPauseFeatureFlag(),
+    ]);
+  }, [fetchAutoPauseFeatureFlag, fetchStatus]);
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
+    void refreshDashboard();
+    const interval = setInterval(() => {
+      void refreshDashboard();
+    }, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshDashboard]);
 
   const handleAction = async (id: string, action: string) => {
     setActionsInProgress(prev => ({ ...prev, [id]: true }));
@@ -82,11 +107,39 @@ export default function Dashboard() {
         method: "POST",
         body: JSON.stringify({ action }),
       });
-      fetchStatus();
+      await refreshDashboard();
     } catch (err) {
       console.error(err);
     } finally {
       setActionsInProgress(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const handleAutoPauseToggle = async (container: ContainerStatus, enabled: boolean) => {
+    setActionsInProgress(prev => ({ ...prev, [container.id]: true }));
+    const previous = container.autoPauseEnabled ?? true;
+
+    setContainers(prev =>
+      prev.map(c => (c.id === container.id ? { ...c, autoPauseEnabled: enabled } : c))
+    );
+
+    try {
+      const res = await fetch(getApiUrl(`/api/containers/${container.id}`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: enabled ? "autopause-enable" : "autopause-disable" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "自動PAUSE設定の更新に失敗しました");
+      await refreshDashboard();
+    } catch (err) {
+      console.error(err);
+      setContainers(prev =>
+        prev.map(c => (c.id === container.id ? { ...c, autoPauseEnabled: previous } : c))
+      );
+      alert(err instanceof Error ? err.message : "自動PAUSE設定の更新に失敗しました。");
+    } finally {
+      setActionsInProgress(prev => ({ ...prev, [container.id]: false }));
     }
   };
 
@@ -106,7 +159,7 @@ export default function Dashboard() {
       if (data.output) {
         alert(data.output);
       }
-      fetchStatus();
+      await refreshDashboard();
     } catch (err) {
       console.error(err);
       alert("KICK コマンドの送信に失敗しました。");
@@ -181,7 +234,7 @@ export default function Dashboard() {
       if (!res.ok) {
         console.error(data);
       }
-      fetchStatus();
+      await refreshDashboard(true);
     } catch (err) {
       console.error(err);
       setClusterLog({
@@ -268,7 +321,7 @@ export default function Dashboard() {
               一括停止
             </button>
             <button
-              onClick={() => fetchStatus(true)}
+              onClick={() => void refreshDashboard(true)}
               className="px-4 py-2 bg-secondary text-secondary-foreground rounded text-sm hover:bg-secondary/80"
             >
               更新
@@ -409,6 +462,42 @@ export default function Dashboard() {
                     <p className="truncate">{c.status}</p>
                   </div>
                 </div>
+
+                {isAdmin && (() => {
+                  const autoPauseEnabled = c.autoPauseEnabled ?? true;
+                  const autoPauseDisabledReason = !autoPauseFeatureEnabled
+                    ? "AUTO_PAUSE_ENABLED が有効でないため操作できません"
+                      : "";
+                  const autoPauseDisabled = actionsInProgress[c.id] || !!autoPauseDisabledReason;
+
+                  return (
+                    <div className="p-3 rounded border bg-secondary/20 space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold">自動PAUSE</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {autoPauseDisabledReason || (autoPauseEnabled ? "有効 (lockなし)" : "禁止中 (lockあり)")}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleAutoPauseToggle(c, !autoPauseEnabled)}
+                          disabled={autoPauseDisabled}
+                          title={autoPauseDisabledReason || undefined}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            autoPauseEnabled ? 'bg-emerald-400' : 'bg-emerald-800'
+                          } ${autoPauseDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${
+                              autoPauseEnabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {c.onlinePlayers && c.onlinePlayers.length > 0 && (
                   <div className="bg-secondary/30 p-2 rounded text-xs space-y-1">

@@ -284,7 +284,6 @@ export default function ClusterSettingsPage() {
 
       setDefaults(resolvedDefaults);
       setSettings(merged);
-
       const loadedAll = parseModsCsv(merged.ALL_MODS);
       const loadedEnabled = parseModsCsv(merged.MODS);
       setAllModIds(Array.from(new Set([...loadedAll, ...loadedEnabled])));
@@ -878,7 +877,6 @@ export default function ClusterSettingsPage() {
                   const onlineCount = container?.onlinePlayers?.length || 0;
                   const offlineCount = container?.offlinePlayers?.length || 0;
                   const hasPlayers = (onlineCount + offlineCount) > 0;
-
                   return (
                     <div key={i} className="p-4 bg-card border rounded-lg shadow-sm">
                       <div className="flex items-center gap-2 mb-3">
