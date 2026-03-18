@@ -1,6 +1,6 @@
 export const ASA_MAP_NAMES: Record<string, string> = {
   "TheIsland_WP": "アイランド",
-  "TheIsland_WP:1460513": "アイランド（再鍛造）",
+  "TheIsland_WP:1460513": "アイランド公式改善版",
   "TheCenter_WP": "センター",
   "ScorchedEarth_WP": "スコーチドアース",
   "Ragnarok_WP": "ラグナロク",
@@ -13,7 +13,7 @@ export const ASA_MAP_NAMES: Record<string, string> = {
   // "Genesis2_WP": "ジェネシス2",
   // "LostIsland_WP": "ロストアイランド",
   // "Fjordur_WP": "フィヨルド",
-  "BobsMissions_WP": "Club ARK",
+  "BobsMissions_WP:1005639": "Club ARK",
   "SurvivalOfTheFittest_TheIsland_WP": "Survival Of The Fittest",
   "LostColony_WP": "ロストコロニー",
 };
