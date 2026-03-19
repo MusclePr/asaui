@@ -168,6 +168,8 @@ export default function Dashboard() {
 
   const QUICK_RCON_COMMANDS = [
     { label: "☠", command: "DestroyWildDinos", tooltip: "野生恐竜のリセット" },
+    { label: "↑", command: "slomo 1", tooltip: "ゲームスピードを通常に戻す" },
+    { label: "⇈", command: "slomo 20", tooltip: "ゲームスピードを20倍に" },
   ];
 
   const [quickRconInProgress, setQuickRconInProgress] = useState<Record<string, boolean>>({});
