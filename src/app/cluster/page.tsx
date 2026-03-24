@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import Editor from "@monaco-editor/react";
 import AppLayout from "@/components/AppLayout";
@@ -171,6 +171,8 @@ export default function ClusterSettingsPage() {
   const [enabledModIds, setEnabledModIds] = useState<string[]>([]);
   const [modInfo, setModInfo] = useState<Record<string, ModInfo>>({});
   const [newModId, setNewModId] = useState("");
+  // 取得済み・取得中のMOD IDを追跡するref（modInfoをdepsに入れると無限ループするため）
+  const fetchedModIdsRef = useRef<Set<string>>(new Set());
 
   const modsCsv = useMemo(() => {
     return allModIds.filter((id) => enabledModIds.includes(id)).join(",");
@@ -485,7 +487,9 @@ export default function ClusterSettingsPage() {
   };
 
   const fetchModInfo = useCallback(async (id: string) => {
-    if (modInfo[id]) return;
+    // refで管理することで、modInfoをdepsに含めず無限ループを防ぐ
+    if (fetchedModIdsRef.current.has(id)) return;
+    fetchedModIdsRef.current.add(id);
     try {
       const res = await fetch(getApiUrl(`/api/curseforge/mod/${id}`), { cache: "no-store" });
       const data = await res.json();
@@ -505,15 +509,18 @@ export default function ClusterSettingsPage() {
         [id]: { id },
       }));
     }
-  }, [modInfo]);
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       for (const id of allModIds) {
+        if (cancelled) break;
         // sequential to avoid API burst
         await fetchModInfo(id);
       }
     })();
+    return () => { cancelled = true; };
   }, [allModIds, fetchModInfo]);
 
   const addMod = async () => {
