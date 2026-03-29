@@ -48,6 +48,82 @@ export function serializeEnv(map: EnvMap): string {
   );
 }
 
+/**
+ * Serialize env map while preserving the layout from a template file.
+ * Template file structure (comments, section order) is maintained.
+ * Existing values override template defaults, and new keys not in template are appended at the end.
+ * 
+ * @param map The environment variables to serialize
+ * @param templateFilePath Path to the template file to use as layout reference
+ * @returns Serialized environment string maintaining template layout
+ */
+export function serializeEnvWithTemplate(map: EnvMap, templateFilePath: string): string {
+  if (!fs.existsSync(templateFilePath)) {
+    // Fallback to normal serialization if template doesn't exist
+    return serializeEnv(map);
+  }
+
+  const templateText = fs.readFileSync(templateFilePath, "utf8");
+  const templateLines = templateText.split("\n");
+  
+  // Track which keys from the map have been used
+  const usedKeys = new Set<string>();
+  const lines: string[] = [];
+
+  // Process template file line by line
+  for (const line of templateLines) {
+    const trimmed = line.trim();
+    
+    // Handle comment and empty lines as-is
+    if (!trimmed || trimmed.startsWith("#")) {
+      lines.push(line);
+      continue;
+    }
+
+    // Parse key=value pairs
+    const eq = line.indexOf("=");
+    if (eq <= 0) {
+      // Not a valid key=value line, keep as-is
+      lines.push(line);
+      continue;
+    }
+
+    const key = line.slice(0, eq).trim();
+    if (!key) {
+      lines.push(line);
+      continue;
+    }
+
+    usedKeys.add(key);
+    const value = map[key];
+    
+    if (value !== undefined) {
+      // Use value from map
+      const needsQuotes = value.includes(" ") || value.includes("#");
+      lines.push(`${key}=${needsQuotes ? `"${value}"` : value}`);
+    } else {
+      // Template key not in map, keep template line as-is
+      lines.push(line);
+    }
+  }
+
+  // Append keys that exist in map but not in template
+  const unusedKeys = Object.keys(map)
+    .filter((k) => !usedKeys.has(k))
+    .sort();
+  
+  if (unusedKeys.length > 0) {
+    lines.push(""); // Add blank line before appended keys
+    for (const key of unusedKeys) {
+      const value = map[key];
+      const needsQuotes = value.includes(" ") || value.includes("#");
+      lines.push(`${key}=${needsQuotes ? `"${value}"` : value}`);
+    }
+  }
+
+  return lines.join("\n") + "\n";
+}
+
 export function readEnvFile(filePath: string): EnvMap {
   if (!fs.existsSync(filePath)) return {};
   const text = fs.readFileSync(filePath, "utf8");

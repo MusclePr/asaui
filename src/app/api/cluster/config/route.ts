@@ -8,6 +8,7 @@ import {
 import {
   parseEnvText,
   serializeEnv,
+  serializeEnvWithTemplate,
   validateCronWithSupercronic,
   calculateSlavePorts,
   CLUSTER_CONFIG_KEYS,
@@ -109,8 +110,8 @@ export async function POST(req: NextRequest) {
     // Auto-calculate SLAVE_PORTS
     newEnv["ASA_SLAVE_PORTS"] = calculateSlavePorts(newEnv);
 
-    // Save
-    fs.writeFileSync(CLUSTER_ENV_FILE, serializeEnv(newEnv), "utf8");
+    // Save with template layout
+    fs.writeFileSync(CLUSTER_ENV_FILE, serializeEnvWithTemplate(newEnv, CLUSTER_ENV_TEMPLATE_FILE), "utf8");
 
     // Refresh cache
     await refreshServerCache();

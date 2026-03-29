@@ -41,7 +41,8 @@ function writeList(filePath: string, list: string[]) {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const unique = Array.from(new Set(list.map(id => id.trim()).filter(Boolean)));
-  fs.writeFileSync(filePath, unique.join("\n"));
+  const content = unique.length > 0 ? `${unique.join("\n")}\n` : "";
+  fs.writeFileSync(filePath, content);
 }
 
 export function getWhitelist(): string[] {
