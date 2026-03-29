@@ -5,6 +5,7 @@ import path from "node:path";
 import Docker from "dockerode";
 import { CLUSTER_DIR } from "./cluster";
 import { runDockerCompose } from "./compose";
+import { getServers } from "./config";
 
 const execAsync = promisify(exec);
 const docker = new Docker();
@@ -39,6 +40,19 @@ export async function isContainerRunning(containerName: string) {
     console.error("Error checking container status:", error);
     return false;
   }
+}
+
+function getMainServerRef(): { serviceId: string; containerName: string } {
+  const servers = getServers();
+  const main = servers.find(server => server.id === "asa0") ?? servers[0];
+  return {
+    serviceId: main?.id || "asa0",
+    containerName: main?.containerName || "asa0",
+  };
+}
+
+export function getMainServerContainerName(): string {
+  return getMainServerRef().containerName;
 }
 
 async function getSessionName(): Promise<string> {
@@ -140,11 +154,12 @@ export async function listBackups(): Promise<BackupFile[]> {
 }
 
 export async function createBackup() {
-  const isRunning = await isContainerRunning("asa0");
+  const main = getMainServerRef();
+  const isRunning = await isContainerRunning(main.containerName);
   
   if (isRunning) {
     // Use the manager script inside the asa0 container
-    return await runDockerCompose(["compose", "exec", "-u", "arkuser", "-T", "asa0", "manager", "backup"]);
+    return await runDockerCompose(["compose", "exec", "-u", "arkuser", "-T", main.serviceId, "manager", "backup"]);
   } else {
     // Manual backup while container is offline
     const sessionName = await getSessionName();
@@ -164,7 +179,8 @@ export async function createBackup() {
 }
 
 export async function restoreBackup(filename: string) {
-  const isRunning = await isContainerRunning("asa0");
+  const main = getMainServerRef();
+  const isRunning = await isContainerRunning(main.containerName);
   const backupFile = path.join(BACKUP_DIR, filename);
 
   if (!fs.existsSync(backupFile)) {
@@ -173,7 +189,7 @@ export async function restoreBackup(filename: string) {
 
   if (isRunning) {
     // manager restore <filename>
-    return await runDockerCompose(["compose", "exec", "-u", "arkuser", "-T", "asa0", "manager", "restore", filename]);
+    return await runDockerCompose(["compose", "exec", "-u", "arkuser", "-T", main.serviceId, "manager", "restore", filename]);
   } else {
     // Manual restore while container is offline
     console.log(`Performing offline restore: ${filename}`);

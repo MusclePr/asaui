@@ -4,7 +4,7 @@ services:
     extends:
       file: common.yml
       service: asa
-    container_name: asa0
+    container_name: ${ASA0_CONTAINER_NAME}
     ports:
       - "${ASA0_SERVER_PORT}:${ASA0_SERVER_PORT}/udp"
       - "${ASA0_QUERY_PORT}:${ASA0_QUERY_PORT}/udp"
@@ -29,7 +29,7 @@ services:
 #    extends:
 #      file: common.yml
 #      service: asa
-#    container_name: asa<no>
+#    container_name: ${ASA<no>_CONTAINER_NAME}
 #    ports:
 #      - "${ASA<no>_SERVER_PORT}:${ASA<no>_SERVER_PORT}/udp"
 #      - "${ASA<no>_QUERY_PORT}:${ASA<no>_QUERY_PORT}/udp"
@@ -43,9 +43,15 @@ services:
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
   asa_config:
-    container_name: asa_config
+    container_name: ${NAME}_asa_config
     image: busybox
     init: true
     command: httpd -vfh /web
     volumes:
       - ${HOST_CLUSTER_DIR:-.}/web:/web:ro
+    networks:
+      - default
+
+networks:
+  default:
+    name: ${NAME}_cluster_default

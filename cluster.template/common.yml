@@ -9,3 +9,5 @@ services:
       - .common.env
     volumes:
       - ${HOST_CLUSTER_DIR:-.}/server:/opt/arkserver
+    networks:
+      - default

@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
-import { getDiskUsage, listBackups, createBackup, isContainerRunning } from "@/lib/backups";
+import {
+  getDiskUsage,
+  listBackups,
+  createBackup,
+  isContainerRunning,
+  getMainServerContainerName,
+} from "@/lib/backups";
 
 export async function GET() {
   try {
+    const mainContainerName = getMainServerContainerName();
     const [diskUsage, backups, isRunning] = await Promise.all([
       getDiskUsage(),
       listBackups(),
-      isContainerRunning("asa0"),
+      isContainerRunning(mainContainerName),
     ]);
     return NextResponse.json({ diskUsage, backups, isRunning });
   } catch (error) {
