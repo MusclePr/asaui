@@ -159,6 +159,47 @@ export async function manageContainer(id: string, action: string) {
   }
 }
 
+export async function execManagerUnpause(containerIdOrName: string): Promise<string> {
+  const container = docker.getContainer(containerIdOrName);
+  const exec = await container.exec({
+    Cmd: ['manager', 'unpause'],
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: false,
+    User: 'arkuser'
+  });
+
+  const stream = await exec.start({});
+  return new Promise((resolve, reject) => {
+    let output = "";
+    let buffer = Buffer.alloc(0);
+
+    stream.on('data', (chunk: Buffer) => {
+      buffer = Buffer.concat([buffer, chunk]);
+
+      while (buffer.length >= 8) {
+        const size = buffer.readUInt32BE(4);
+
+        if (buffer.length >= 8 + size) {
+          const content = buffer.subarray(8, 8 + size).toString('utf-8');
+          output += content;
+          buffer = buffer.subarray(8 + size);
+        } else {
+          break;
+        }
+      }
+    });
+
+    stream.on('end', () => {
+      if (output === "" && buffer.length > 0) {
+        output = buffer.toString('utf-8');
+      }
+      resolve(output.trim());
+    });
+    stream.on('error', reject);
+  });
+}
+
 export async function setContainerAutoPauseEnabled(
   containerIdOrName: string,
   enabled: boolean

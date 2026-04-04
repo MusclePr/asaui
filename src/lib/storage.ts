@@ -79,6 +79,12 @@ export function removeFromBypassList(eosId: string) {
   writeList(BYPASS_FILE, list);
 }
 
+export function clearBypassList(): string[] {
+  const list = getBypassList();
+  writeList(BYPASS_FILE, []);
+  return list;
+}
+
 export function getPlayerProfiles(): Record<string, PlayerMeta> {
   return readJson<Record<string, PlayerMeta>>(PLAYERS_META_FILE, {});
 }

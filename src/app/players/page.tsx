@@ -12,10 +12,13 @@ export default function PlayersPage() {
   const [search, setSearch] = useState("");
   const [registerName, setRegisterName] = useState("");
   const [registerEosId, setRegisterEosId] = useState("");
-  const [registerWhitelist, setRegisterWhitelist] = useState(true);
-  const [registerBypass, setRegisterBypass] = useState(false);
+  const [registerWhitelist, setRegisterWhitelist] = useState(false);
+  const [registerBypass, setRegisterBypass] = useState(true);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [operatingBypassEosIds, setOperatingBypassEosIds] = useState<Set<string>>(new Set());
+  const [operatingWhitelistEosIds, setOperatingWhitelistEosIds] = useState<Set<string>>(new Set());
+  const [bulkClearLoading, setBulkClearLoading] = useState(false);
 
   const fetchPlayers = async () => {
     setLoading(true);
@@ -34,30 +37,96 @@ export default function PlayersPage() {
     fetchPlayers();
   }, []);
 
-  const toggleWhitelist = async (eosId: string) => {
-    try {
-      const player = players.find(p => p.eosId === eosId);
-      const res = await fetch(getApiUrl("/api/players/whitelist"), {
-        method: player?.isWhitelisted ? "DELETE" : "POST",
-        body: JSON.stringify({ eosId }),
-      });
-      if (res.ok) fetchPlayers();
-    } catch (err) {
-      console.error(err);
-    }
+  const toggleWhitelist = (eosId: string) => {
+    // Immediately reflect UI state while fetching in background
+    const player = players.find(p => p.eosId === eosId);
+    const newState = !player?.isWhitelisted;
+    setPlayers(prev =>
+      prev.map(p =>
+        p.eosId === eosId ? { ...p, isWhitelisted: newState } : p
+      )
+    );
+    setOperatingWhitelistEosIds(prev => new Set([...prev, eosId]));
+
+    // Fetch in background
+    (async () => {
+      try {
+        const res = await fetch(getApiUrl("/api/players/whitelist"), {
+          method: newState ? "POST" : "DELETE",
+          body: JSON.stringify({ eosId }),
+        });
+        if (res.ok) {
+          await fetchPlayers();
+        } else {
+          // Revert on failure
+          setPlayers(prev =>
+            prev.map(p =>
+              p.eosId === eosId ? { ...p, isWhitelisted: !newState } : p
+            )
+          );
+        }
+      } catch (err) {
+        console.error(err);
+        // Revert on error
+        setPlayers(prev =>
+          prev.map(p =>
+            p.eosId === eosId ? { ...p, isWhitelisted: !newState } : p
+          )
+        );
+      } finally {
+        setOperatingWhitelistEosIds(prev => {
+          const next = new Set(prev);
+          next.delete(eosId);
+          return next;
+        });
+      }
+    })();
   };
 
-  const toggleBypass = async (eosId: string) => {
-    try {
-      const player = players.find(p => p.eosId === eosId);
-      const res = await fetch(getApiUrl("/api/players/bypass"), {
-        method: player?.isBypassed ? "DELETE" : "POST",
-        body: JSON.stringify({ eosId }),
-      });
-      if (res.ok) fetchPlayers();
-    } catch (err) {
-      console.error(err);
-    }
+  const toggleBypass = (eosId: string) => {
+    // Immediately reflect UI state while fetching in background
+    const player = players.find(p => p.eosId === eosId);
+    const newState = !player?.isBypassed;
+    setPlayers(prev =>
+      prev.map(p =>
+        p.eosId === eosId ? { ...p, isBypassed: newState } : p
+      )
+    );
+    setOperatingBypassEosIds(prev => new Set([...prev, eosId]));
+
+    // Fetch in background
+    (async () => {
+      try {
+        const res = await fetch(getApiUrl("/api/players/bypass"), {
+          method: newState ? "POST" : "DELETE",
+          body: JSON.stringify({ eosId }),
+        });
+        if (res.ok) {
+          await fetchPlayers();
+        } else {
+          // Revert on failure
+          setPlayers(prev =>
+            prev.map(p =>
+              p.eosId === eosId ? { ...p, isBypassed: !newState } : p
+            )
+          );
+        }
+      } catch (err) {
+        console.error(err);
+        // Revert on error
+        setPlayers(prev =>
+          prev.map(p =>
+            p.eosId === eosId ? { ...p, isBypassed: !newState } : p
+          )
+        );
+      } finally {
+        setOperatingBypassEosIds(prev => {
+          const next = new Set(prev);
+          next.delete(eosId);
+          return next;
+        });
+      }
+    })();
   };
 
   const handleSelectPlayer = (player: PlayerInfo) => {
@@ -77,6 +146,28 @@ export default function PlayersPage() {
       if (res.ok) fetchPlayers();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleBulkClearBypass = async () => {
+    if (!confirm("すべてのプレイヤーをバイパスリストから削除しますか？")) return;
+
+    setBulkClearLoading(true);
+    try {
+      const res = await fetch(getApiUrl("/api/players/bypass/clear"), {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        console.log(`Cleared ${data.clearedCount} bypassed players`);
+        await fetchPlayers();
+      } else {
+        console.error("Failed to clear bypass list:", data.error);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBulkClearLoading(false);
     }
   };
 
@@ -145,6 +236,8 @@ export default function PlayersPage() {
     if (aTime !== bTime) return bTime - aTime;
     return (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name, "ja");
   });
+
+  const hasBypassedPlayers = players.some(p => p.isBypassed);
 
   return (
     <AppLayout>
@@ -233,15 +326,24 @@ export default function PlayersPage() {
           </div>
         </form>
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="表示名またはEOS IDで検索..."
-            className="w-full pl-10 pr-4 py-2 bg-card border rounded-md"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="表示名またはEOS IDで検索..."
+              className="w-full pl-10 pr-4 py-2 bg-card border rounded-md"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={handleBulkClearBypass}
+            disabled={bulkClearLoading || !hasBypassedPlayers}
+            className="px-4 py-2 bg-amber-600 text-white rounded text-sm hover:bg-amber-500 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {bulkClearLoading ? "処理中..." : "バイパス一括OFF"}
+          </button>
         </div>
 
         <div className="bg-card border rounded-lg overflow-hidden">
@@ -277,8 +379,11 @@ export default function PlayersPage() {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => toggleWhitelist(p.eosId)}
-                      className={`p-2 rounded-md ${
-                        p.isWhitelisted 
+                      disabled={operatingWhitelistEosIds.has(p.eosId)}
+                      className={`p-2 rounded-md transition-colors ${
+                        operatingWhitelistEosIds.has(p.eosId)
+                          ? 'text-blue-500 bg-blue-500/10 opacity-70'
+                          : p.isWhitelisted 
                           ? 'text-green-500 hover:bg-green-500/10' 
                           : 'text-muted-foreground hover:bg-red-500/10 hover:text-red-500'
                       }`}
@@ -290,8 +395,11 @@ export default function PlayersPage() {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => toggleBypass(p.eosId)}
-                      className={`p-2 rounded-md ${
-                        p.isBypassed
+                      disabled={operatingBypassEosIds.has(p.eosId)}
+                      className={`p-2 rounded-md transition-colors ${
+                        operatingBypassEosIds.has(p.eosId)
+                          ? 'text-blue-500 bg-blue-500/10 opacity-70'
+                          : p.isBypassed
                           ? 'text-amber-500 hover:bg-amber-500/10'
                           : 'text-muted-foreground hover:bg-red-500/10 hover:text-red-500'
                       }`}
