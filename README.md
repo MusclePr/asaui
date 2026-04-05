@@ -49,6 +49,20 @@ services:
 `DOCKER_GID` は通常、未指定のままで問題ありません。asaui は起動時に `/var/run/docker.sock` の GID を自動検出して利用します。
 必要な場合のみ、`DOCKER_GID` を明示指定してください。
 
+### Docker API 互換エラーの確認
+
+ホストの Docker Daemon が新しい場合、asaui コンテナ内の Docker CLI が古いと次のようなエラーが出ます。
+
+- `client version is too old. Minimum supported API version is ...`
+
+このリポジトリの Dockerfile は Docker 公式 apt リポジトリから `docker-ce-cli` と `docker-compose-plugin` を導入します。
+更新反映時は再ビルド後に asaui コンテナ内で次を確認してください。
+
+```bash
+docker version
+docker compose version
+```
+
 `.env` に以下の設定が必要です。
 
 ```bash

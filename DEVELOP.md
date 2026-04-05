@@ -102,6 +102,9 @@ cluster の親フォルダに、`compose.yml` を定義します。
 - **ボリューム:**
   - `./cluster:/cluster`（cluster の env 編集・compose up/down のため）
   - `/var/run/docker.sock:/var/run/docker.sock` ホストの docker コマンドと同等に扱えるようにするため。
+- **Docker CLI 方針:**
+  - asaui コンテナ内の Docker CLI は Docker 公式 apt リポジトリから導入する（`docker-ce-cli` + `docker-compose-plugin`）。
+  - ホスト Daemon との API 不整合（`client version is too old`）が出る場合は、asaui イメージを再ビルドして追随する。
 - **環境変数**
   - `.env` を使用します。
     ```ini
