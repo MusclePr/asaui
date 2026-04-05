@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { addToBypassList, addToWhitelist, setPlayerDisplayName } from "@/lib/storage";
-import { execRcon } from "@/lib/docker";
+import { execManagerUnpause, execRcon } from "@/lib/docker";
 import { getServers } from "@/lib/config";
 
 function getErrorMessage(error: unknown): string {
@@ -20,7 +20,9 @@ export async function POST(req: NextRequest) {
     setPlayerDisplayName(eosId, resolvedDisplayName);
 
     const servers = getServers();
-    const targets = servers.map(server => server.id).filter(Boolean);
+    const targets = servers
+      .map(server => server.containerName || server.id)
+      .filter(Boolean);
 
     if (whitelist) {
       addToWhitelist(eosId);
@@ -30,7 +32,24 @@ export async function POST(req: NextRequest) {
 
     if (bypass) {
       // バイパスリスト：RCON優先。すべてのRCON失敗時のみファイル書き込み
-      const rconResults = await Promise.allSettled(targets.map(id => execRcon(id, `AllowPlayerToJoinNoCheck ${eosId}`)));
+      // 一覧トグルAPIと同様に unpause を先行して、PAUSED 状態でも即時反映を狙う。
+      const rconResults = await Promise.allSettled(targets.map(async (id) => {
+        try {
+          const unpauseOutput = await execManagerUnpause(id);
+          if (unpauseOutput) {
+            console.info(`manager unpause output for ${id}: ${unpauseOutput}`);
+          }
+        } catch (error: unknown) {
+          console.warn(`Failed to run manager unpause before register bypass RCON: ${id}`, error);
+        }
+
+        try {
+          await execRcon(id, `AllowPlayerToJoinNoCheck ${eosId}`);
+        } catch (error: unknown) {
+          console.warn(`Failed to execute register bypass RCON command for ${id}`, error);
+          throw error;
+        }
+      }));
       const anyRconSucceeded = rconResults.some(result => result.status === "fulfilled");
       
       if (!anyRconSucceeded) {

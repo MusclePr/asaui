@@ -206,8 +206,8 @@ export default function PlayersPage() {
       } else {
         setRegisterName("");
         setRegisterEosId("");
-        setRegisterWhitelist(true);
-        setRegisterBypass(false);
+        setRegisterWhitelist(false);
+        setRegisterBypass(true);
         fetchPlayers();
       }
     } catch (err) {
