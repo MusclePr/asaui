@@ -29,9 +29,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (bypass) {
-      // バイパスリストに追加・削除する場合、ファイル出力を実行し、RCONコマンドでの即時反映を試みる（失敗してもファイルには残る）
-      addToBypassList(eosId);
-      await Promise.allSettled(targets.map(id => execRcon(id, `AllowPlayerToJoinNoCheck ${eosId}`)));
+      // バイパスリスト：RCON優先。すべてのRCON失敗時のみファイル書き込み
+      const rconResults = await Promise.allSettled(targets.map(id => execRcon(id, `AllowPlayerToJoinNoCheck ${eosId}`)));
+      const anyRconSucceeded = rconResults.some(result => result.status === "fulfilled");
+      
+      if (!anyRconSucceeded) {
+        // すべてのRCONが失敗した場合のみファイル書き込み
+        addToBypassList(eosId);
+      }
     }
 
     return NextResponse.json({ success: true });

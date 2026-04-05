@@ -24,3 +24,16 @@ export interface PlayerInfo {
   isWhitelisted: boolean;
   isBypassed: boolean;
 }
+
+export interface UnregisteredPlayerCandidate {
+  serverId: string; // Container ID from docker
+  serverName: string; // Container display name (e.g. asa_island_server)
+  eosId: string; // 32-char hex EOS ID
+  ip: string; // IP address from logs
+  detectedAtUtc: string; // ISO string of incoming account timestamp
+  detectedAtLocal?: string; // Local time representation
+  name?: string; // Player name (from left this ARK! log if found)
+  platform?: string; // Platform (from UniqueNetId if found, e.g. "None")
+  hasLeftEvent: boolean; // Whether we found the matching "left this ARK!" event within 30s
+  sourceLine?: string; // Original log line for debugging
+}

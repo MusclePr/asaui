@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import AppLayout from "@/components/AppLayout";
-import { Play, Square, RotateCcw, FileText, X, Terminal, Send } from "lucide-react";
-import { ContainerStatus } from "@/types";
+import { Play, Square, RotateCcw, FileText, X, Terminal, Send, Search, Loader, Check } from "lucide-react";
+import { ContainerStatus, UnregisteredPlayerCandidate } from "@/types";
 import LogStreamViewer from "@/components/LogStreamViewer";
 import { getApiUrl } from "@/lib/utils";
 import { canExecuteRcon, isContainerActionLocked, isPausedDetailedState, isPausingDetailedState } from "@/lib/serverState";
@@ -54,6 +54,15 @@ export default function Dashboard() {
   const [rconLoading, setRconLoading] = useState(false);
   const rconScrollRef = useRef<HTMLDivElement>(null);
 
+  // Unregistered players modal state
+  const [showUnregisteredModal, setShowUnregisteredModal] = useState(false);
+  const [unregisteredCandidates, setUnregisteredCandidates] = useState<UnregisteredPlayerCandidate[]>([]);
+  const [unregisteredLoading, setUnregisteredLoading] = useState(false);
+  const [unregisteredError, setUnregisteredError] = useState<string | null>(null);
+  const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
+  const [registeringEosIds, setRegisteringEosIds] = useState<Set<string>>(new Set());
+  const [registeredEosIds, setRegisteredEosIds] = useState<Set<string>>(new Set());
+
   const fetchAutoPauseFeatureFlag = useCallback(async () => {
     try {
       const res = await fetch(getApiUrl("/api/cluster/env"), { cache: "no-store" });
@@ -91,6 +100,75 @@ export default function Dashboard() {
       fetchAutoPauseFeatureFlag(),
     ]);
   }, [fetchAutoPauseFeatureFlag, fetchStatus]);
+
+  const fetchUnregisteredCandidates = useCallback(async () => {
+    setUnregisteredLoading(true);
+    setUnregisteredError(null);
+    setSelectedCandidates(new Set());
+    setRegisteredEosIds(new Set());
+
+    try {
+      const res = await fetch(getApiUrl("/api/players/unregistered"));
+      const data = await res.json();
+      
+      if (res.ok && Array.isArray(data)) {
+        setUnregisteredCandidates(data);
+      } else {
+        setUnregisteredError(data?.error || "未登録者の取得に失敗しました");
+      }
+    } catch (err) {
+      console.error(err);
+      setUnregisteredError("ネットワークエラーが発生しました");
+    } finally {
+      setUnregisteredLoading(false);
+    }
+  }, []);
+
+  const handleRegisterUnregistered = async () => {
+    const selectedArray = Array.from(selectedCandidates);
+    if (selectedArray.length === 0) return;
+
+    setRegisteringEosIds(new Set(selectedArray));
+
+    try {
+      const results = await Promise.allSettled(
+        selectedArray.map(eosId => {
+          const candidate = unregisteredCandidates.find(c => c.eosId === eosId);
+          if (!candidate) return Promise.reject(new Error("Candidate not found"));
+
+          return fetch(getApiUrl("/api/players/register"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              eosId,
+              displayName: candidate.name || "",
+              whitelist: false,
+              bypass: true,
+            }),
+          });
+        })
+      );
+
+      // Track successfully registered IDs
+      const newRegistered = new Set(registeredEosIds);
+      results.forEach((result, idx) => {
+        if (result.status === "fulfilled" && result.value.ok) {
+          newRegistered.add(selectedArray[idx]);
+        }
+      });
+      
+      setRegisteredEosIds(newRegistered);
+
+      // Refresh dashboard after successful registrations
+      if (newRegistered.size > 0) {
+        await refreshDashboard(true);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRegisteringEosIds(new Set());
+    }
+  };
 
   useEffect(() => {
     void refreshDashboard();
@@ -310,6 +388,8 @@ export default function Dashboard() {
     }
   };
 
+  const canSearchUnregistered = containers.some((c) => c.state !== "not_created");
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -339,6 +419,22 @@ export default function Dashboard() {
               title="停止中かつ lock 存在時のみ .signals を削除"
             >
               クリーンアップ
+            </button>
+            <button
+              onClick={() => {
+                setShowUnregisteredModal(true);
+                void fetchUnregisteredCandidates();
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-500 disabled:opacity-60 flex items-center gap-2"
+              disabled={loading || unregisteredLoading || !canSearchUnregistered}
+              title={
+                !canSearchUnregistered
+                  ? "ログ取得可能なコンテナがないため検索できません"
+                  : "クラスタ全体から未登録接続を検索して登録を支援"
+              }
+            >
+              <Search className="h-4 w-4" />
+              {unregisteredLoading ? "検索中..." : "未登録者検索"}
             </button>
             <button
               onClick={() => void refreshDashboard(true)}
@@ -738,6 +834,177 @@ export default function Dashboard() {
                   <Send className="h-4 w-4" /> 実行
                 </button>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Unregistered Players Modal */}
+      {showUnregisteredModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-6xl bg-background rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                <div>
+                  <h2 className="text-xl font-bold">未登録者検索</h2>
+                  <p className="text-xs text-muted-foreground">クラスタ全体から未登録の接続を検索</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowUnregisteredModal(false)}
+                className="p-2 hover:bg-secondary rounded-full transition-colors"
+                disabled={registeringEosIds.size > 0}
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-4 min-h-0">
+              {unregisteredLoading ? (
+                <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
+                  <Loader className="h-5 w-5 animate-spin" />
+                  <span>検索中...</span>
+                </div>
+              ) : unregisteredError ? (
+                <div className="p-4 border border-destructive rounded bg-destructive/10 text-destructive">
+                  <p className="font-medium">エラー</p>
+                  <p className="text-sm">{unregisteredError}</p>
+                </div>
+              ) : unregisteredCandidates.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  <p className="text-lg">未登録者は見つかりませんでした</p>
+                  <p className="text-sm">もしくはすべて登録済みです</p>
+                </div>
+              ) : (
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="w-8 px-4 py-3 text-left">
+                          <input
+                            type="checkbox"
+                            checked={selectedCandidates.size === unregisteredCandidates.filter(c => !registeredEosIds.has(c.eosId)).length && unregisteredCandidates.length > 0}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedCandidates(new Set(
+                                  unregisteredCandidates
+                                    .filter(c => !registeredEosIds.has(c.eosId))
+                                    .map(c => c.eosId)
+                                ));
+                              } else {
+                                setSelectedCandidates(new Set());
+                              }
+                            }}
+                            disabled={registeringEosIds.size > 0}
+                            className="h-4 w-4"
+                          />
+                        </th>
+                        <th className="px-4 py-3 text-left">サーバー</th>
+                        <th className="px-4 py-3 text-left">プレイヤー名</th>
+                        <th className="px-4 py-3 text-left">PlatformEOS ID</th>
+                        <th className="px-4 py-3 text-left">IP</th>
+                        <th className="px-4 py-3 text-left">接続時刻</th>
+                        <th className="px-4 py-3 text-center">ステータス</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {unregisteredCandidates.map((candidate) => {
+                        const isRegistered = registeredEosIds.has(candidate.eosId);
+                        const isRegistering = registeringEosIds.has(candidate.eosId);
+                        const isSelected = selectedCandidates.has(candidate.eosId);
+
+                        return (
+                          <tr key={candidate.eosId} className="hover:bg-muted/50 transition-colors">
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  const newSelected = new Set(selectedCandidates);
+                                  if (e.target.checked) {
+                                    newSelected.add(candidate.eosId);
+                                  } else {
+                                    newSelected.delete(candidate.eosId);
+                                  }
+                                  setSelectedCandidates(newSelected);
+                                }}
+                                disabled={isRegistered || isRegistering || registeringEosIds.size > 0}
+                                className="h-4 w-4"
+                              />
+                            </td>
+                            <td className="px-4 py-3 font-medium">{candidate.serverName}</td>
+                            <td className="px-4 py-3">
+                              {candidate.name || (
+                                <span className="text-muted-foreground italic">不明</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-xs">
+                              <div>{candidate.platform || "None"}</div>
+                              <div className="font-mono text-muted-foreground">{candidate.eosId}</div>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-sm">{candidate.ip}</td>
+                            <td className="px-4 py-3 text-sm text-muted-foreground">
+                              {new Date(candidate.detectedAtUtc).toLocaleString("ja-JP")}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {isRegistering ? (
+                                <Loader className="h-4 w-4 animate-spin inline text-blue-500" />
+                              ) : isRegistered ? (
+                                <div className="flex items-center justify-center gap-1 text-green-600">
+                                  <Check className="h-4 w-4" />
+                                  <span className="text-xs">済</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">未登録</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t p-4 flex items-center justify-between gap-2">
+              <div className="text-sm text-muted-foreground">
+                {selectedCandidates.size > 0 ? (
+                  <span>{selectedCandidates.size} 件を選択</span>
+                ) : (
+                  <span>
+                    {registeredEosIds.size > 0 && (
+                      <span className="text-green-600">{registeredEosIds.size} 件登録済み</span>
+                    )}
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowUnregisteredModal(false)}
+                  className="px-4 py-2 bg-secondary text-secondary-foreground rounded text-sm hover:bg-secondary/80 disabled:opacity-50"
+                  disabled={registeringEosIds.size > 0}
+                >
+                  閉じる
+                </button>
+                <button
+                  onClick={handleRegisterUnregistered}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+                  disabled={selectedCandidates.size === 0 || registeringEosIds.size > 0}
+                >
+                  {registeringEosIds.size > 0 ? (
+                    <>
+                      <Loader className="h-4 w-4 animate-spin" />
+                      登録中...
+                    </>
+                  ) : (
+                    "バイパス登録"
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
