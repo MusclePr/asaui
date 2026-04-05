@@ -36,7 +36,7 @@ services:
       - "TZ=Asia/Tokyo"
       - "PUID=1000"
       - "PGID=1000"
-      - "DOCKER_GID=999"
+      - "DOCKER_GID=${DOCKER_GID:-}"
       - "NEXTAUTH_URL=http://localhost:8080${NEXT_PUBLIC_BASE_PATH:-/asaui}"
     volumes:
       - ./cluster:/cluster
@@ -45,6 +45,9 @@ services:
       - "8080:3000"
 
 ```
+
+`DOCKER_GID` は通常、未指定のままで問題ありません。asaui は起動時に `/var/run/docker.sock` の GID を自動検出して利用します。
+必要な場合のみ、`DOCKER_GID` を明示指定してください。
 
 `.env` に以下の設定が必要です。
 

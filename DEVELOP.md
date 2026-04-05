@@ -49,7 +49,7 @@ services:
       - "TZ=Asia/Tokyo"
       - "PUID=1000"
       - "PGID=1000"
-      - "DOCKER_GID=999"
+      - "DOCKER_GID=${DOCKER_GID:-}"
       - "NEXTAUTH_URL=http://localhost:8080${NEXT_PUBLIC_BASE_PATH:-/asaui}"
     volumes:
       - ./cluster:/cluster
@@ -57,6 +57,9 @@ services:
     ports:
       - "8080:3000"
 ```
+
+`DOCKER_GID` は任意設定です。未指定時は asaui の entrypoint が `/var/run/docker.sock` の GID を起動時に検出して使用します。
+ホスト固有の事情で固定したい場合のみ明示指定します。
 
 ARK サーバー群は [cluster/compose.yml](cluster/compose.yml) で運用し、asaui から一括 `up/down` を実行する。
 

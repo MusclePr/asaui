@@ -43,7 +43,7 @@ services:
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
   asa_config:
-    container_name: ${NAME}_asa_config
+    container_name: ${CLUSTER_NAME}_asa_config
     image: busybox
     init: true
     command: httpd -vfh /web
@@ -54,4 +54,4 @@ services:
 
 networks:
   default:
-    name: ${NAME}_cluster_default
+    name: ${CLUSTER_NAME}_cluster_default

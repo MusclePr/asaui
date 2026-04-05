@@ -12,7 +12,7 @@ services:
       - "TZ=Asia/Tokyo"
       - "PUID=1000"
       - "PGID=1000"
-      - "DOCKER_GID=999"
+      - "DOCKER_GID=${DOCKER_GID:-}"
       - "NEXTAUTH_URL=http://localhost:8080${NEXT_PUBLIC_BASE_PATH:-/asaui}"
     volumes:
       - ./cluster:/cluster

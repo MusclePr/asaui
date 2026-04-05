@@ -15,7 +15,7 @@ SYSTEM_FILES=(
     defaults/common.env
 )
 
-CLUSTER_DIR="${CLUSTER_DIR:-../cluster}"
+CLUSTER_DIR="${CLUSTER_DIR:-${TEMPLATE_DIR}/../cluster}"
 if [ ! -d "$CLUSTER_DIR" ] || [ ! -f "$CLUSTER_DIR/compose.yml" ]; then
     read -p "Cluster directory '$CLUSTER_DIR' does not exist. Do you want to create it with the latest template files? (Y/n) " answer
     if [[ "$answer" =~ ^[Nn] ]]; then

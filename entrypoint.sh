@@ -9,7 +9,31 @@ fi
 # Default values
 USER_ID=${PUID:-1000}
 GROUP_ID=${PGID:-1000}
-DOCKER_GID=${DOCKER_GID:-999}
+DEFAULT_DOCKER_GID=999
+DOCKER_GID_SOURCE="default"
+
+# Resolve docker group GID with priority: explicit env > docker.sock GID > default
+if [ -n "${DOCKER_GID:-}" ]; then
+    DOCKER_GID_SOURCE="explicit"
+elif [ -S /var/run/docker.sock ]; then
+    DETECTED_DOCKER_GID=$(stat -c '%g' /var/run/docker.sock 2>/dev/null || true)
+    if [ -n "$DETECTED_DOCKER_GID" ]; then
+        DOCKER_GID="$DETECTED_DOCKER_GID"
+        DOCKER_GID_SOURCE="detected"
+    fi
+fi
+
+if [ -z "${DOCKER_GID:-}" ]; then
+    DOCKER_GID="$DEFAULT_DOCKER_GID"
+fi
+
+case "$DOCKER_GID" in
+    ''|*[!0-9]*)
+        echo "Warning: Invalid DOCKER_GID '$DOCKER_GID'. Falling back to default $DEFAULT_DOCKER_GID"
+        DOCKER_GID="$DEFAULT_DOCKER_GID"
+        DOCKER_GID_SOURCE="default"
+        ;;
+esac
 
 # Detect host path for /cluster (DooD volume path resolution)
 export HOST_CLUSTER_DIR=$(cat /proc/self/mountinfo | grep ' /cluster ' | cut -d ' ' -f 4)
@@ -18,7 +42,7 @@ if [ -z "$HOST_CLUSTER_DIR" ]; then
     HOST_CLUSTER_DIR=""
 fi
 
-echo "Starting with UID: $USER_ID, GID: $GROUP_ID, DOCKER_GID: $DOCKER_GID, HOST_CLUSTER_DIR: $HOST_CLUSTER_DIR"
+echo "Starting with UID: $USER_ID, GID: $GROUP_ID, DOCKER_GID: $DOCKER_GID ($DOCKER_GID_SOURCE), HOST_CLUSTER_DIR: $HOST_CLUSTER_DIR"
 
 # Modify nodejs group if needed
 if [ "$(id -g nextjs)" -ne "$GROUP_ID" ]; then
@@ -75,7 +99,11 @@ if [ -n "$HOST_CLUSTER_DIR" ] && [ -d "$HOST_CLUSTER_DIR" ]; then
 fi
 
 echo "Checking permissions for /var/run/docker.sock..."
-ls -l /var/run/docker.sock
+if [ -S /var/run/docker.sock ]; then
+    ls -l /var/run/docker.sock
+else
+    echo "Warning: /var/run/docker.sock is not available. Docker API calls may fail."
+fi
 echo "Execution identity: $(id nextjs)"
 
 # Use gosu with only the username to ensure all supplementary groups are loaded

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
-import { addToBypassList, removeFromBypassList } from "@/lib/storage";
+import { addToBypassList, getBypassList, removeFromBypassList } from "@/lib/storage";
 import { execManagerUnpause, execRcon } from "@/lib/docker";
 import { getServers } from "@/lib/config";
 
@@ -44,6 +44,11 @@ export async function POST(req: NextRequest) {
     addToBypassList(eosId);
     await runBypassRcon((value) => `AllowPlayerToJoinNoCheck ${value}`, eosId);
 
+    const list = getBypassList();
+    if (!list.includes(eosId)) {
+      return NextResponse.json({ error: "Failed to register EOS ID to bypass list" }, { status: 500 });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
@@ -60,6 +65,11 @@ export async function DELETE(req: NextRequest) {
 
     removeFromBypassList(eosId);
     await runBypassRcon((value) => `DisallowPlayerToJoinNoCheck ${value}`, eosId);
+
+    const list = getBypassList();
+    if (list.includes(eosId)) {
+      return NextResponse.json({ error: "Failed to remove EOS ID from bypass list" }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
