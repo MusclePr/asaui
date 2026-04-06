@@ -137,7 +137,7 @@ export default function PlayersPage() {
   };
 
   const deletePlayer = async (eosId: string) => {
-    if (!confirm("このプレイヤーを削除しますか？\nホワイトリストとバイパスリストも解除されます。")) return;
+    if (!confirm("このプレイヤーを削除しますか？\nホワイトリストと一時的な参加承認も解除されます。")) return;
     try {
       const res = await fetch(getApiUrl("/api/players/delete"), {
         method: "POST",
@@ -150,7 +150,7 @@ export default function PlayersPage() {
   };
 
   const handleBulkClearBypass = async () => {
-    if (!confirm("すべてのプレイヤーをバイパスリストから削除しますか？")) return;
+    if (!confirm("すべてのプレイヤーを一時的な参加承認リストから削除しますか？")) return;
 
     setBulkClearLoading(true);
     try {
@@ -185,7 +185,7 @@ export default function PlayersPage() {
       return;
     }
     if (!registerWhitelist && !registerBypass) {
-      setRegisterError("ホワイトリストまたはバイパスリストのいずれかを選択してください。");
+      setRegisterError("ホワイトリストまたは一時的な参加承認のいずれかを選択してください。");
       return;
     }
 
@@ -255,7 +255,7 @@ export default function PlayersPage() {
         <form onSubmit={handleRegister} className="bg-card border rounded-lg p-4 space-y-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Info className="h-4 w-4" />
-            <p>バイパスリストのみ、RUNNING 状態のサーバーだけ即時反映されますが、それ以外はサーバーの再起動が必要です。</p>
+            <p>一時的な参加承認のみ、RUNNING 状態のサーバーだけ即時反映されますが、それ以外はサーバーの再起動が必要です。</p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -307,7 +307,7 @@ export default function PlayersPage() {
                 onChange={(e) => setRegisterBypass(e.target.checked)}
                 disabled={registerLoading}
               />
-              バイパスリスト
+              一時的な参加承認
             </label>
           </div>
 
@@ -342,7 +342,7 @@ export default function PlayersPage() {
             disabled={bulkClearLoading || !hasBypassedPlayers}
             className="px-4 py-2 bg-amber-600 text-white rounded text-sm hover:bg-amber-500 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            {bulkClearLoading ? "処理中..." : "バイパス一括OFF"}
+            {bulkClearLoading ? "処理中..." : "一時的な参加承認の一括解除"}
           </button>
         </div>
 
@@ -354,7 +354,7 @@ export default function PlayersPage() {
                 <th className="px-4 py-3 text-left">EOS ID</th>
                 <th className="px-4 py-3 text-left">最終ログイン</th>
                 <th className="px-4 py-3 text-right">ホワイトリスト</th>
-                <th className="px-4 py-3 text-right">バイパスリスト</th>
+                <th className="px-4 py-3 text-right">一時的な参加承認</th>
                 <th className="px-4 py-3 text-right">削除</th>
               </tr>
             </thead>

@@ -1001,7 +1001,7 @@ export default function Dashboard() {
                       登録中...
                     </>
                   ) : (
-                    "バイパス登録"
+                    "一時的な参加承認"
                   )}
                 </button>
               </div>

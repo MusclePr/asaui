@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (bypass) {
-      // バイパスリスト：RCON優先。すべてのRCON失敗時のみファイル書き込み
+      // 一時的な参加希望者の承認用のバイパスリスト：RCON優先。すべてのRCON失敗時のみファイル書き込み
       // 一覧トグルAPIと同様に unpause を先行して、PAUSED 状態でも即時反映を狙う。
       const rconResults = await Promise.allSettled(targets.map(async (id) => {
         try {
