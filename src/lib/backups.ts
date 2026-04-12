@@ -1,4 +1,4 @@
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
@@ -7,8 +7,10 @@ import { CLUSTER_DIR } from "./cluster";
 import { runDockerCompose } from "./compose";
 import { getServers } from "./config";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const docker = new Docker();
+
+const BACKUP_FILENAME_RE = /^[a-z0-9_]+_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.tar\.gz$/;
 
 export const BACKUP_DIR = path.join(CLUSTER_DIR, "backups");
 export const SAVED_DIR = path.join(CLUSTER_DIR, "server", "ShooterGame", "Saved");
@@ -80,6 +82,24 @@ function formatDate(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}`;
 }
 
+export function isValidBackupFilename(filename: string): boolean {
+  return BACKUP_FILENAME_RE.test(filename);
+}
+
+function resolveBackupPath(filename: string): string {
+  if (!isValidBackupFilename(filename)) {
+    throw new Error("Invalid backup filename");
+  }
+
+  const baseDir = path.resolve(BACKUP_DIR);
+  const resolved = path.resolve(BACKUP_DIR, filename);
+  if (!(resolved === baseDir || resolved.startsWith(`${baseDir}${path.sep}`))) {
+    throw new Error("Invalid backup filename");
+  }
+
+  return resolved;
+}
+
 export async function getDiskUsage(): Promise<DiskUsage> {
   if (!fs.existsSync(BACKUP_DIR)) {
     return {
@@ -91,10 +111,13 @@ export async function getDiskUsage(): Promise<DiskUsage> {
     };
   }
   try {
-    // df -B1 returns size in bytes
     // Output format: Filesystem 1B-blocks Used Available Use% Mounted on
-    const { stdout: dfOut } = await execAsync(`df -B1 ${BACKUP_DIR} | tail -1`);
-    const parts = dfOut.trim().split(/\s+/);
+    const { stdout: dfOut } = await execFileAsync("df", ["-B1", BACKUP_DIR]);
+    const dfLines = dfOut.trim().split("\n");
+    const dfLastLine = dfLines[dfLines.length - 1] ?? "";
+    if (!dfLastLine) throw new Error("Failed to parse df output");
+
+    const parts = dfLastLine.trim().split(/\s+/);
     const total = parseInt(parts[1], 10);
     const used = parseInt(parts[2], 10);
     const available = parseInt(parts[3], 10);
@@ -102,7 +125,7 @@ export async function getDiskUsage(): Promise<DiskUsage> {
     // du -sb returns apparent size in bytes
     let backupSize = 0;
     try {
-      const { stdout: duOut } = await execAsync(`du -sb ${BACKUP_DIR}`);
+      const { stdout: duOut } = await execFileAsync("du", ["-sb", BACKUP_DIR]);
       backupSize = parseInt(duOut.trim().split(/\s+/)[0], 10);
     } catch (e) {
       console.error("Failed to get backup size with du:", e);
@@ -138,7 +161,7 @@ export async function listBackups(): Promise<BackupFile[]> {
   const backups: BackupFile[] = [];
 
   for (const file of files) {
-    if (file.endsWith(".tar.gz")) {
+    if (isValidBackupFilename(file)) {
       const filePath = path.join(BACKUP_DIR, file);
       const stats = fs.statSync(filePath);
       backups.push({
@@ -171,9 +194,13 @@ export async function createBackup() {
     }
 
     console.log(`Performing offline backup: ${filename}`);
-    // tar -czf dest -C base_dir folder_to_archive
-    // Note: We use executive command directly to match container behavior
-    await execAsync(`tar -czf ${destPath} -C ${path.dirname(SAVED_DIR)} ${path.basename(SAVED_DIR)}`);
+    await execFileAsync("tar", [
+      "-czf",
+      destPath,
+      "-C",
+      path.dirname(SAVED_DIR),
+      path.basename(SAVED_DIR),
+    ]);
     return { success: true, filename };
   }
 }
@@ -181,7 +208,7 @@ export async function createBackup() {
 export async function restoreBackup(filename: string) {
   const main = getMainServerRef();
   const isRunning = await isContainerRunning(main.containerName);
-  const backupFile = path.join(BACKUP_DIR, filename);
+  const backupFile = resolveBackupPath(filename);
 
   if (!fs.existsSync(backupFile)) {
     throw new Error("Backup file not found");
@@ -196,22 +223,18 @@ export async function restoreBackup(filename: string) {
     
     // 1. Remove existing Saved dir
     if (fs.existsSync(SAVED_DIR)) {
-      await execAsync(`rm -rf ${SAVED_DIR}`);
+      await fs.promises.rm(SAVED_DIR, { recursive: true, force: true });
     }
 
     // 2. Extract backup
     // Assuming archive contains 'Saved/' directory
-    await execAsync(`tar -xzf ${backupFile} -C ${path.dirname(SAVED_DIR)}`);
+    await execFileAsync("tar", ["-xzf", backupFile, "-C", path.dirname(SAVED_DIR)]);
     return { success: true };
   }
 }
 
 export async function deleteBackup(filename: string) {
-  const filePath = path.join(BACKUP_DIR, filename);
-  // Security check: ensure path is inside BACKUP_DIR
-  if (!filePath.startsWith(path.resolve(BACKUP_DIR))) {
-    throw new Error("Invalid backup filename");
-  }
+  const filePath = resolveBackupPath(filename);
 
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
@@ -219,9 +242,14 @@ export async function deleteBackup(filename: string) {
 }
 
 export function getBackupStream(filename: string) {
-  const filePath = path.join(BACKUP_DIR, filename);
-  if (!filePath.startsWith(path.resolve(BACKUP_DIR)) || !fs.existsSync(filePath)) {
+  let filePath = "";
+  try {
+    filePath = resolveBackupPath(filename);
+  } catch {
     return null;
   }
+
+  if (!fs.existsSync(filePath)) return null;
+
   return fs.createReadStream(filePath);
 }

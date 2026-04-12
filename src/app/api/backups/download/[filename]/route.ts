@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { getBackupStream } from "@/lib/backups";
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
 ) {
+  const session = await requireSession();
+  if (!session) return unauthorizedResponse();
+
   try {
     const { filename } = await params;
     const stream = getBackupStream(filename);

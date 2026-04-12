@@ -11,6 +11,7 @@ ARK: Ascended Docker 用の専用 Web 管理 UI です。
 - **ホワイトリスト管理:** EOS ID とニックネームのペアを JSON でシンプルに管理。
 - **RCON コンソール:** コンテナ内コマンド経由で RCON 操作を実行。
 - **サーバー設定:** クラスター共通設定（`.common.env`）を UI から安全に編集。
+- **２レベル管理者:** 管理権限は、パスワードに応じて、２レベルに分かれます。(admin/simple)
 
 ## セットアップ
 
@@ -118,7 +119,7 @@ git submodule update --init --recursive
 ## 開発
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 

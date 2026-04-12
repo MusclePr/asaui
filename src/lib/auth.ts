@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 type RoleUser = {
   id: string;
@@ -13,6 +14,13 @@ function getRoleFromUser(user: unknown): string | undefined {
   return typeof role === "string" ? role : undefined;
 }
 
+function timingSafePasswordEquals(input: string | undefined, expected: string | undefined): boolean {
+  if (!input || !expected) return false;
+  const inputDigest = createHash("sha256").update(input, "utf8").digest();
+  const expectedDigest = createHash("sha256").update(expected, "utf8").digest();
+  return timingSafeEqual(inputDigest, expectedDigest);
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -21,11 +29,11 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (credentials?.password === process.env.ASAUI_PASSWORD) {
+        if (timingSafePasswordEquals(credentials?.password, process.env.ASAUI_PASSWORD)) {
           const user: RoleUser = { id: "admin", name: "Administrator", role: "admin" };
           return user;
         }
-        if (process.env.ASAUI_SIMPLE_PASSWORD && credentials?.password === process.env.ASAUI_SIMPLE_PASSWORD) {
+        if (timingSafePasswordEquals(credentials?.password, process.env.ASAUI_SIMPLE_PASSWORD)) {
           const user: RoleUser = { id: "simple", name: "Viewer", role: "simple" };
           return user;
         }

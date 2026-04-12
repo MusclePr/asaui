@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { forbiddenResponse, requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import {
   getDiskUsage,
   listBackups,
@@ -8,6 +9,9 @@ import {
 } from "@/lib/backups";
 
 export async function GET() {
+  const session = await requireSession();
+  if (!session) return unauthorizedResponse();
+
   try {
     const mainContainerName = getMainServerContainerName();
     const [diskUsage, backups, isRunning] = await Promise.all([
@@ -23,6 +27,10 @@ export async function GET() {
 }
 
 export async function POST() {
+  const session = await requireSession();
+  if (!session) return unauthorizedResponse();
+  if (session.user?.role !== "admin") return forbiddenResponse();
+
   try {
     await createBackup();
     return NextResponse.json({ success: true });
