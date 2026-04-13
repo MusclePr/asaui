@@ -891,7 +891,7 @@ export default function ClusterSettingsPage() {
                           asa{i}
                         </span>
                         <span className="text-sm font-mono font-bold truncate">
-                          {containerName} <span className="text-muted-foreground mx-1">:</span> {envConfig.ASA_SESSION_PREFIX || ""}{envConfig[`ASA${i}_SESSION_NAME`] || ""}
+                          {envConfig.ASA_SESSION_PREFIX || ""}{envConfig[`ASA${i}_SESSION_NAME`] || ""}
                         </span>
                       </div>
                       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 items-end">
