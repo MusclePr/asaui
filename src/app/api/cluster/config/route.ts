@@ -16,6 +16,8 @@ import {
   getClusterNodeCount,
 } from "@/lib/envfile";
 import { refreshServerCache } from "@/lib/compose";
+import { ARK_SAVE_BASE_DIR } from "@/lib/config";
+import { ASA_MAP_NAMES, getBaseMapName } from "@/lib/maps";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected error";
@@ -36,7 +38,12 @@ export async function GET() {
   try {
     ensureEnvExists();
     const env = parseEnvText(fs.readFileSync(CLUSTER_ENV_FILE, "utf8"));
-    return NextResponse.json({ env });
+    const mapsWithSaveData = Object.keys(ASA_MAP_NAMES).filter((mapRaw) => {
+      const mapId = getBaseMapName(mapRaw);
+      const savePath = `${ARK_SAVE_BASE_DIR}/${mapId}/${mapId}.ark`;
+      return fs.existsSync(savePath);
+    });
+    return NextResponse.json({ env, mapsWithSaveData });
   } catch (error: unknown) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
@@ -95,14 +102,27 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate map duplication
-    const mapCounts: Record<string, number> = {};
+    const mapOwnersByBase: Record<string, { rawMaps: Set<string>; owners: string[] }> = {};
     for (let i = 0; i < clusterNodeCount; i++) {
       const keys = getAsaServerKeys(i);
       const map = newEnv[keys.MAP];
       if (map) {
-        mapCounts[map] = (mapCounts[map] || 0) + 1;
-        if (mapCounts[map] > 1) {
-          return NextResponse.json({ error: `マップ「${map}」が重複しています。各サーバーには異なるマップを指定してください。` }, { status: 400 });
+        const baseMapId = getBaseMapName(map);
+        const owner = `ASA${i}`;
+        mapOwnersByBase[baseMapId] = mapOwnersByBase[baseMapId] || {
+          rawMaps: new Set<string>(),
+          owners: [],
+        };
+        mapOwnersByBase[baseMapId].rawMaps.add(map);
+        mapOwnersByBase[baseMapId].owners.push(owner);
+        if (mapOwnersByBase[baseMapId].owners.length > 1) {
+          const selectedMaps = Array.from(mapOwnersByBase[baseMapId].rawMaps).join(" / ");
+          return NextResponse.json(
+            {
+              error: `同じマップID「${baseMapId}」が重複しています（選択: ${selectedMaps} / サーバー: ${mapOwnersByBase[baseMapId].owners.join(" / ")}）。各サーバーには異なるマップIDを指定してください。`,
+            },
+            { status: 400 }
+          );
         }
       }
     }

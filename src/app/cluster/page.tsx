@@ -7,7 +7,7 @@ import AppLayout from "@/components/AppLayout";
 import { Save, Plus, Trash2, RefreshCcw, ArrowUp, ArrowDown, Power, PowerOff, ShieldAlert, ChevronRight, Eye, EyeOff, Zap, Settings2, Info, Users } from "lucide-react";
 import { PasswordInput } from "@/components/PasswordInput";
 import { getApiUrl } from "@/lib/utils";
-import { ASA_MAP_NAMES } from "@/lib/maps";
+import { ASA_MAP_NAMES, getBaseMapName } from "@/lib/maps";
 import { ContainerStatus } from "@/types";
 import cronstrue from "cronstrue";
 import "cronstrue/locales/ja";
@@ -148,6 +148,7 @@ export default function ClusterSettingsPage() {
 
   // Cluster/Infra Settings (.env)
   const [envConfig, setEnvConfig] = useState<EnvConfig>({});
+  const [mapsWithSaveData, setMapsWithSaveData] = useState<Set<string>>(new Set());
 
   const clusterNodeCount = useMemo(() => resolveClusterNodeCount(envConfig), [envConfig]);
 
@@ -296,6 +297,7 @@ export default function ClusterSettingsPage() {
       const dataConfig = await resConfig.json();
       if (!resConfig.ok) throw new Error(dataConfig?.error || "インフラ設定の読み込みに失敗しました");
       setEnvConfig(dataConfig.env || {});
+      setMapsWithSaveData(new Set(Array.isArray(dataConfig.mapsWithSaveData) ? dataConfig.mapsWithSaveData : []));
 
       // 3. Dynamic Config (dynamicconfig.ini)
       const resDynamic = await fetch(getApiUrl("/api/cluster/dynamic"), { cache: "no-store" });
@@ -372,12 +374,16 @@ export default function ClusterSettingsPage() {
     if (e2) return e2;
 
     // Validate map duplication
-    const maps = new Set<string>();
+    const seenByBase = new Map<string, string>();
     for (let i = 0; i < 10; i++) {
       const map = envConfig[`ASA${i}_SERVER_MAP`];
       if (map) {
-        if (maps.has(map)) return `マップ「${map}」が重複しています。`;
-        maps.add(map);
+        const baseMapId = getBaseMapName(map);
+        const previous = seenByBase.get(baseMapId);
+        if (previous) {
+          return `同じマップID「${baseMapId}」が重複しています（${previous} / ${map}）。`;
+        }
+        seenByBase.set(baseMapId, map);
       }
     }
 
@@ -905,6 +911,7 @@ export default function ClusterSettingsPage() {
                               </span>
                             )}
                           </div>
+                          <p className="text-[10px] text-muted-foreground">● セーブデータあり</p>
                           <select
                             value={mapValue ?? ""}
                             onChange={(e) => updateEnv(mapKey, e.target.value)}
@@ -912,11 +919,15 @@ export default function ClusterSettingsPage() {
                             className={`w-full px-3 py-2 border rounded text-sm ${hasPlayers ? "bg-muted cursor-not-allowed" : "bg-background"}`}
                           >
                             {isAdmin && <option value="">(None)</option>}
-                            {Object.entries(ASA_MAP_NAMES).map(([raw, display]) => (
-                               <option key={raw} value={raw}>
-                                {display} ({raw})
-                              </option>
-                            ))}
+                            {Object.entries(ASA_MAP_NAMES).map(([raw, display]) => {
+                              const hasSaveData = mapsWithSaveData.has(raw);
+                              return (
+                                <option key={raw} value={raw}>
+                                  {hasSaveData ? "● " : ""}
+                                  {display} ({raw})
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
 
