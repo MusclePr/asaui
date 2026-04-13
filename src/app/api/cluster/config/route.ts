@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import {
@@ -31,6 +32,30 @@ function ensureEnvExists() {
   fs.copyFileSync(CLUSTER_ENV_TEMPLATE_FILE, CLUSTER_ENV_FILE);
 }
 
+function getMapIdsWithSaveData(): Set<string> {
+  const foundMapIds = new Set<string>();
+  if (!fs.existsSync(ARK_SAVE_BASE_DIR)) return foundMapIds;
+
+  const subDirs = fs.readdirSync(ARK_SAVE_BASE_DIR, { withFileTypes: true });
+  for (const entry of subDirs) {
+    if (!entry.isDirectory()) continue;
+    const dirPath = path.join(ARK_SAVE_BASE_DIR, entry.name);
+    let files: string[] = [];
+    try {
+      files = fs.readdirSync(dirPath);
+    } catch {
+      continue;
+    }
+
+    for (const file of files) {
+      if (!file.endsWith(".ark")) continue;
+      foundMapIds.add(file.slice(0, -4));
+    }
+  }
+
+  return foundMapIds;
+}
+
 export async function GET() {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
@@ -38,10 +63,10 @@ export async function GET() {
   try {
     ensureEnvExists();
     const env = parseEnvText(fs.readFileSync(CLUSTER_ENV_FILE, "utf8"));
+    const mapIdsWithSaveData = getMapIdsWithSaveData();
     const mapsWithSaveData = Object.keys(ASA_MAP_NAMES).filter((mapRaw) => {
       const mapId = getBaseMapName(mapRaw);
-      const savePath = `${ARK_SAVE_BASE_DIR}/${mapId}/${mapId}.ark`;
-      return fs.existsSync(savePath);
+      return mapIdsWithSaveData.has(mapId);
     });
     return NextResponse.json({ env, mapsWithSaveData });
   } catch (error: unknown) {
