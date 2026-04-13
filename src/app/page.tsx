@@ -9,6 +9,46 @@ import LogStreamViewer from "@/components/LogStreamViewer";
 import { getApiUrl } from "@/lib/utils";
 import { canExecuteRcon, isContainerActionLocked, isPausedDetailedState, isPausingDetailedState } from "@/lib/serverState";
 
+const TRANSITIONAL_DETAILED_STATES = new Set([
+  "STARTING",
+  "STOPPING",
+  "PAUSING",
+  "RESUMING",
+  "UPDATING",
+  "WAITING",
+  "WAIT_MASTER",
+  "WAIT_INSTALL",
+]);
+
+function isServerOperationInProgress(container: ContainerStatus): boolean {
+  const detailed = (container.detailedState || "").toUpperCase();
+  return container.isStopping === true || TRANSITIONAL_DETAILED_STATES.has(detailed);
+}
+
+function isClusterBackupRestoreInProgress(container: ContainerStatus): boolean {
+  if (!container.clusterOperationInProgress) return false;
+  return container.clusterOperationType === "backup" || container.clusterOperationType === "restore";
+}
+
+function getClusterOperationLabel(type?: ContainerStatus["clusterOperationType"]): string {
+  return type === "restore" ? "復元" : "バックアップ";
+}
+
+type ServerActionType = "start" | "stop" | "restart";
+
+function getServerOperationLabel(container: ContainerStatus, localAction?: ServerActionType): string {
+  const ds = (container.detailedState || "").toUpperCase();
+  if (ds === "STARTING" || ds === "RESUMING") return "起動中";
+  if (ds === "UPDATING") return "更新中";
+  if (ds === "WAITING" || ds === "WAIT_MASTER" || ds === "WAIT_INSTALL") return "準備中";
+  if (ds === "STOPPING" || container.isStopping) return "停止中";
+  if (ds === "PAUSING") return "PAUSE 移行中";
+  if (localAction === "start") return "起動中";
+  if (localAction === "stop") return "停止中";
+  if (localAction === "restart") return "再起動中";
+  return "処理中";
+}
+
 type ClusterComposeResponse = {
   success?: boolean;
   error?: string;
@@ -45,7 +85,8 @@ export default function Dashboard() {
   const [autoPauseFeatureEnabled, setAutoPauseFeatureEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [clusterBusy, setClusterBusy] = useState<"up" | "down" | "cleanup-signals" | null>(null);
-  const [actionsInProgress, setActionsInProgress] = useState<Record<string, boolean>>({});
+  const [actionsInProgress, setActionsInProgress] = useState<Record<string, ServerActionType | null>>({});
+  const [autoPauseActionsInProgress, setAutoPauseActionsInProgress] = useState<Record<string, boolean>>({});
   const [clusterLog, setClusterLog] = useState<ClusterLog | null>(null);
   const [selectedLogContainer, setSelectedLogContainer] = useState<ContainerStatus | null>(null);
   const [selectedRconContainer, setSelectedRconContainer] = useState<ContainerStatus | null>(null);
@@ -80,7 +121,9 @@ export default function Dashboard() {
 
   const fetchStatus = useCallback(async (forceRefresh = false) => {
     try {
-      const res = await fetch(getApiUrl(`/api/containers${forceRefresh ? "?refresh=true" : ""}`));
+      const res = await fetch(getApiUrl(`/api/containers${forceRefresh ? "?refresh=true" : ""}`), {
+        cache: "no-store",
+      });
       const data = await res.json();
       if (Array.isArray(data)) {
         setContainers(data);
@@ -170,16 +213,24 @@ export default function Dashboard() {
     }
   };
 
+  const hasAnyOperationInProgress =
+    clusterBusy !== null ||
+    Object.values(actionsInProgress).some((v) => v != null) ||
+    Object.values(autoPauseActionsInProgress).some(Boolean) ||
+    containers.some((container) => isServerOperationInProgress(container) || isClusterBackupRestoreInProgress(container));
+
   useEffect(() => {
     void refreshDashboard();
     const interval = setInterval(() => {
       void refreshDashboard();
-    }, 10000);
+    }, hasAnyOperationInProgress ? 3000 : 10000);
     return () => clearInterval(interval);
-  }, [refreshDashboard]);
+  }, [hasAnyOperationInProgress, refreshDashboard]);
 
   const handleAction = async (id: string, action: string) => {
-    setActionsInProgress(prev => ({ ...prev, [id]: true }));
+    const serverAction: ServerActionType =
+      action === "stop" ? "stop" : action === "restart" ? "restart" : "start";
+    setActionsInProgress(prev => ({ ...prev, [id]: serverAction }));
     try {
       await fetch(getApiUrl(`/api/containers/${id}`), {
         method: "POST",
@@ -189,12 +240,12 @@ export default function Dashboard() {
     } catch (err) {
       console.error(err);
     } finally {
-      setActionsInProgress(prev => ({ ...prev, [id]: false }));
+      setActionsInProgress(prev => ({ ...prev, [id]: null }));
     }
   };
 
   const handleAutoPauseToggle = async (container: ContainerStatus, enabled: boolean) => {
-    setActionsInProgress(prev => ({ ...prev, [container.id]: true }));
+    setAutoPauseActionsInProgress(prev => ({ ...prev, [container.id]: true }));
     const previous = container.autoPauseEnabled ?? true;
 
     setContainers(prev =>
@@ -217,7 +268,7 @@ export default function Dashboard() {
       );
       alert(err instanceof Error ? err.message : "自動PAUSE設定の更新に失敗しました。");
     } finally {
-      setActionsInProgress(prev => ({ ...prev, [container.id]: false }));
+      setAutoPauseActionsInProgress(prev => ({ ...prev, [container.id]: false }));
     }
   };
 
@@ -539,7 +590,15 @@ export default function Dashboard() {
           <div>Loading servers...</div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {containers.map((c) => (
+            {containers.map((c) => {
+              const clusterOperationActive = isClusterBackupRestoreInProgress(c);
+              const localAction = actionsInProgress[c.id] ?? undefined;
+              const serverOpActive = isServerOperationInProgress(c) || localAction != null;
+              const serverOpLabel = getServerOperationLabel(c, localAction);
+              const cardActionLocked = localAction != null || autoPauseActionsInProgress[c.id] || clusterOperationActive;
+              const clusterOperationLabel = getClusterOperationLabel(c.clusterOperationType);
+
+              return (
               <div key={c.id} className="p-6 bg-card border rounded-lg space-y-4 flex flex-col">
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0 flex-1">
@@ -583,12 +642,30 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                {serverOpActive && !clusterOperationActive && (
+                  <div className="space-y-2 p-3 rounded border border-yellow-500/20 bg-yellow-500/5">
+                    <p className="text-xs font-semibold text-yellow-600">{serverOpLabel}...</p>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-yellow-500/20">
+                      <div className="h-full w-1/3 animate-pulse rounded-full bg-yellow-500" />
+                    </div>
+                  </div>
+                )}
+
+                {clusterOperationActive && (
+                  <div className="space-y-2 p-3 rounded border border-blue-500/20 bg-blue-500/5">
+                    <p className="text-xs font-semibold text-blue-600">クラスタ{clusterOperationLabel}処理中...</p>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-500/20">
+                      <div className="h-full w-1/3 animate-pulse rounded-full bg-blue-500" />
+                    </div>
+                  </div>
+                )}
+
                 {isAdmin && (() => {
                   const autoPauseEnabled = c.autoPauseEnabled ?? true;
                   const autoPauseDisabledReason = !autoPauseFeatureEnabled
                     ? "AUTO_PAUSE_ENABLED が有効でないため操作できません"
                       : "";
-                  const autoPauseDisabled = actionsInProgress[c.id] || !!autoPauseDisabledReason;
+                  const autoPauseDisabled = cardActionLocked || !!autoPauseDisabledReason;
 
                   return (
                     <div className="p-3 rounded border bg-secondary/20 space-y-2">
@@ -667,7 +744,7 @@ export default function Dashboard() {
                       <button
                         key={q.command}
                         onClick={() => handleQuickRcon(c.name, q.command, q.tooltip)}
-                        disabled={!canExecuteRcon(c) || actionsInProgress[c.id] || c.state === 'not_created' || quickRconInProgress[`${c.name}-${q.command}`]}
+                        disabled={!canExecuteRcon(c) || cardActionLocked || c.state === 'not_created' || quickRconInProgress[`${c.name}-${q.command}`]}
                         className="w-8 h-8 flex items-center justify-center bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 disabled:opacity-40 transition-colors"
                         title={q.tooltip}
                       >
@@ -685,7 +762,7 @@ export default function Dashboard() {
                           onClick={() => handleAction(c.id, 'start')}
                           className="p-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 flex justify-center disabled:opacity-40"
                           title={c.state === 'not_created' ? "コンテナが作成されていません（一括起動を使用してください）" : "起動"}
-                          disabled={actionsInProgress[c.id] || c.state === 'not_created'}
+                          disabled={cardActionLocked || c.state === 'not_created'}
                         >
                           <Play className="h-4 w-4" />
                         </button>
@@ -694,7 +771,7 @@ export default function Dashboard() {
                           onClick={() => handleAction(c.id, 'stop')}
                           className="p-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 flex justify-center disabled:opacity-40"
                           title="停止"
-                          disabled={actionsInProgress[c.id] || isContainerActionLocked(c)}
+                          disabled={cardActionLocked || isContainerActionLocked(c)}
                         >
                           <Square className="h-4 w-4" />
                         </button>
@@ -703,7 +780,7 @@ export default function Dashboard() {
                         onClick={() => handleAction(c.id, 'restart')}
                         className="p-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 flex justify-center disabled:opacity-40"
                         title={c.state === 'not_created' ? "コンテナが作成されていません" : "再起動"}
-                        disabled={actionsInProgress[c.id] || isContainerActionLocked(c) || c.state === 'not_created'}
+                        disabled={cardActionLocked || isContainerActionLocked(c) || c.state === 'not_created'}
                       >
                         <RotateCcw className="h-4 w-4" />
                       </button>
@@ -720,9 +797,11 @@ export default function Dashboard() {
                               ? "休眠状態へ遷移中です"
                               : isPausedDetailedState(c.detailedState)
                                 ? "休眠状態のため RCON を実行できません"
+                                : clusterOperationActive
+                                  ? `クラスタ${clusterOperationLabel}処理中のため実行できません`
                                 : (canExecuteRcon(c) ? "RCON コマンド" : (c.isStopping ? "停止処理中" : "RCON (サーバーが正常稼働中のみ利用可能)"))
                         }
-                        disabled={!canExecuteRcon(c) || actionsInProgress[c.id] || c.state === 'not_created'}
+                        disabled={!canExecuteRcon(c) || cardActionLocked || c.state === 'not_created'}
                       >
                         <Terminal className="h-4 w-4" />
                       </button>
@@ -738,7 +817,8 @@ export default function Dashboard() {
                   </>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

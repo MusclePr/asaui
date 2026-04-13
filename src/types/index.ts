@@ -1,3 +1,5 @@
+export type ClusterOperationType = "backup" | "restore";
+
 export interface ContainerStatus {
   id: string; // Service ID or Container ID
   name: string; // Container name
@@ -7,6 +9,8 @@ export interface ContainerStatus {
   health?: string; // e.g. "healthy", "unhealthy", "starting"
   isStopping?: boolean; // detected from "Received shutdown signal" logs
   detailedState?: string; // e.g. "UPDATING", "WAITING", "MAINTENANCE", "PAUSING", "PAUSED"
+  clusterOperationInProgress?: boolean; // cluster-level backup/restore operation detected from .signals/cluster
+  clusterOperationType?: ClusterOperationType;
   map?: string; // Display name
   mapRaw?: string; // Raw name (e.g. TheIsland_WP)
   sessionName?: string;

@@ -10,6 +10,68 @@ import { canExecuteRcon } from './serverState';
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
+type ClusterOperationStatus = {
+  inProgress: boolean;
+  type?: "backup" | "restore";
+};
+
+function readClusterOperationStatus(): ClusterOperationStatus {
+  const clusterSignalsDir = path.join(SIGNAL_DIR, 'cluster');
+  if (!fs.existsSync(clusterSignalsDir)) {
+    return { inProgress: false };
+  }
+
+  const resolveActionFromFile = (filePath: string): "backup" | "restore" | undefined => {
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const parsed = JSON.parse(raw) as { action?: unknown };
+      if (parsed.action === 'backup' || parsed.action === 'restore') {
+        return parsed.action;
+      }
+    } catch {
+      // ignore malformed files and continue fallback checks
+    }
+    return undefined;
+  };
+
+  const activeRequestPath = path.join(clusterSignalsDir, 'request.json');
+  const activeAction = resolveActionFromFile(activeRequestPath);
+  if (activeAction) {
+    return { inProgress: true, type: activeAction };
+  }
+
+  try {
+    const processingCandidates = fs
+      .readdirSync(clusterSignalsDir, { withFileTypes: true })
+      .filter((entry) => {
+        if (!entry.isFile()) return false;
+        if (!entry.name.startsWith('request-')) return false;
+        if (!entry.name.endsWith('.json')) return false;
+        return !entry.name.endsWith('.done.json') && !entry.name.endsWith('.failed.json');
+      })
+      .map((entry) => path.join(clusterSignalsDir, entry.name));
+
+    if (processingCandidates.length === 0) {
+      return { inProgress: false };
+    }
+
+    processingCandidates.sort((a, b) => {
+      const aMtime = fs.statSync(a).mtimeMs;
+      const bMtime = fs.statSync(b).mtimeMs;
+      return bMtime - aMtime;
+    });
+
+    const processingAction = resolveActionFromFile(processingCandidates[0]);
+    if (processingAction) {
+      return { inProgress: true, type: processingAction };
+    }
+  } catch (e) {
+    console.warn('Failed to inspect cluster request status:', e);
+  }
+
+  return { inProgress: false };
+}
+
 function getAutoPauseDisabledLockPath(port: string | number): string {
   return path.join(SIGNAL_DIR, `server_${port}`, 'autopause', 'disabled.lock');
 }
@@ -37,6 +99,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
   const definedServers = getServers();
 
   const signalsExist = fs.existsSync(SIGNAL_DIR);
+  const clusterOperation = signalsExist ? readClusterOperationStatus() : { inProgress: false };
 
   return Promise.all(definedServers.map(async server => {
     // Find container by container_name (usually includes service name)
@@ -120,6 +183,8 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         health,
         isStopping,
         detailedState,
+        clusterOperationInProgress: clusterOperation.inProgress,
+        clusterOperationType: clusterOperation.type,
         autoPauseEnabled,
         onlinePlayers,
         offlinePlayers,
@@ -137,6 +202,8 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         state: "not_created",
         status: "Not created",
         detailedState,
+        clusterOperationInProgress: clusterOperation.inProgress,
+        clusterOperationType: clusterOperation.type,
         autoPauseEnabled,
         offlinePlayers,
         map: getMapDisplayName(server.map),
