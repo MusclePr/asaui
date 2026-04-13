@@ -6,6 +6,19 @@ import { User, ShieldCheck, ShieldAlert, Search, RefreshCw, ShieldOff, Info, Tra
 import { PlayerInfo } from "@/types";
 import { getApiUrl } from "@/lib/utils";
 
+type FailedServer = {
+  id: string;
+  name: string;
+};
+
+type BypassApiResponse = {
+  success?: boolean;
+  error?: string;
+  failedServers?: FailedServer[];
+};
+
+const RCON_PARTIAL_FAILURE_MESSAGE = "以下のサーバーに適用できませんでした。全てのサーバーに反映するには、再起動が必要です。";
+
 export default function PlayersPage() {
   const [players, setPlayers] = useState<PlayerInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +32,61 @@ export default function PlayersPage() {
   const [operatingBypassEosIds, setOperatingBypassEosIds] = useState<Set<string>>(new Set());
   const [operatingWhitelistEosIds, setOperatingWhitelistEosIds] = useState<Set<string>>(new Set());
   const [bulkClearLoading, setBulkClearLoading] = useState(false);
+
+  const getFailedServers = (data: BypassApiResponse): FailedServer[] => {
+    if (!Array.isArray(data.failedServers)) return [];
+    return data.failedServers.filter((server): server is FailedServer => Boolean(server?.id));
+  };
+
+  const formatFailedServers = (failedServers: FailedServer[]): string => {
+    return failedServers.map((server) => `- ${server.name || server.id}`).join("\n");
+  };
+
+  const notifyAndMaybeRestart = async (failedServers: FailedServer[]) => {
+    if (failedServers.length === 0) return;
+
+    alert(`${RCON_PARTIAL_FAILURE_MESSAGE}\n\n${formatFailedServers(failedServers)}`);
+
+    if (!confirm("再起動しますか？")) return;
+
+    const restartResults = await Promise.allSettled(
+      failedServers.map(async (server) => {
+        const res = await fetch(getApiUrl(`/api/containers/${server.id}`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "restart" }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data?.error || `${server.name || server.id} の再起動に失敗しました。`);
+        }
+      })
+    );
+
+    const failedRestartServers = failedServers.filter((_, index) => restartResults[index].status === "rejected");
+
+    if (failedRestartServers.length === failedServers.length) {
+      // Cluster might be fully down (compose down) and containers no longer exist.
+      const upRes = await fetch(getApiUrl("/api/cluster/compose"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "up" }),
+      });
+      const upData = await upRes.json();
+
+      if (upRes.ok && upData?.success) {
+        alert("コンテナ再起動に失敗したため、クラスター全体を起動しました。反映状態を確認してください。");
+        return;
+      }
+    }
+
+    if (failedRestartServers.length > 0) {
+      alert(`以下のサーバーの再起動に失敗しました。\n\n${formatFailedServers(failedRestartServers)}`);
+      return;
+    }
+
+    alert("再起動を実行しました。");
+  };
 
   const fetchPlayers = async () => {
     setLoading(true);
@@ -101,8 +169,10 @@ export default function PlayersPage() {
           method: newState ? "POST" : "DELETE",
           body: JSON.stringify({ eosId }),
         });
+        const data: BypassApiResponse = await res.json();
         if (res.ok) {
           await fetchPlayers();
+          await notifyAndMaybeRestart(getFailedServers(data));
         } else {
           // Revert on failure
           setPlayers(prev =>
@@ -157,10 +227,11 @@ export default function PlayersPage() {
       const res = await fetch(getApiUrl("/api/players/bypass/clear"), {
         method: "POST",
       });
-      const data = await res.json();
+      const data: BypassApiResponse & { clearedCount?: number } = await res.json();
       if (res.ok) {
         console.log(`Cleared ${data.clearedCount} bypassed players`);
         await fetchPlayers();
+        await notifyAndMaybeRestart(getFailedServers(data));
       } else {
         console.error("Failed to clear bypass list:", data.error);
       }
@@ -200,7 +271,7 @@ export default function PlayersPage() {
           bypass: registerBypass,
         }),
       });
-      const data = await res.json();
+      const data: BypassApiResponse = await res.json();
       if (!res.ok) {
         setRegisterError(data?.error || "登録に失敗しました。");
       } else {
@@ -208,7 +279,8 @@ export default function PlayersPage() {
         setRegisterEosId("");
         setRegisterWhitelist(false);
         setRegisterBypass(true);
-        fetchPlayers();
+        await fetchPlayers();
+        await notifyAndMaybeRestart(getFailedServers(data));
       }
     } catch (err) {
       console.error(err);

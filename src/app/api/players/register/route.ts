@@ -21,8 +21,17 @@ export async function POST(req: NextRequest) {
 
     const servers = getServers();
     const targets = servers
-      .map(server => server.containerName || server.id)
-      .filter(Boolean);
+      .map((server) => {
+        const id = server.containerName || server.id;
+        if (!id) return null;
+        return {
+          id,
+          name: server.sessionName || server.containerName || server.id,
+        };
+      })
+      .filter((target): target is { id: string; name: string } => target !== null);
+
+    const failedServers = new Set<string>();
 
     if (whitelist) {
       addToWhitelist(eosId);
@@ -31,34 +40,38 @@ export async function POST(req: NextRequest) {
     }
 
     if (bypass) {
-      // 一時的な参加希望者の承認用のバイパスリスト：RCON優先。すべてのRCON失敗時のみファイル書き込み
-      // 一覧トグルAPIと同様に unpause を先行して、PAUSED 状態でも即時反映を狙う。
-      const rconResults = await Promise.allSettled(targets.map(async (id) => {
+      await Promise.allSettled(targets.map(async (target) => {
         try {
-          const unpauseOutput = await execManagerUnpause(id);
+          const unpauseOutput = await execManagerUnpause(target.id);
           if (unpauseOutput) {
-            console.info(`manager unpause output for ${id}: ${unpauseOutput}`);
+            console.info(`manager unpause output for ${target.id}: ${unpauseOutput}`);
           }
         } catch (error: unknown) {
-          console.warn(`Failed to run manager unpause before register bypass RCON: ${id}`, error);
+          console.warn(`Failed to run manager unpause before register bypass RCON: ${target.id}`, error);
         }
 
         try {
-          await execRcon(id, `AllowPlayerToJoinNoCheck ${eosId}`);
+          await execRcon(target.id, `AllowPlayerToJoinNoCheck ${eosId}`);
         } catch (error: unknown) {
-          console.warn(`Failed to execute register bypass RCON command for ${id}`, error);
-          throw error;
+          console.warn(`Failed to execute register bypass RCON command for ${target.id}`, error);
+          failedServers.add(target.id);
         }
       }));
-      const anyRconSucceeded = rconResults.some(result => result.status === "fulfilled");
-      
-      if (!anyRconSucceeded) {
-        // すべてのRCONが失敗した場合のみファイル書き込み
-        addToBypassList(eosId);
-      }
+
+      // Keep local file state in sync regardless of RCON execution outcome.
+      addToBypassList(eosId);
     }
 
-    return NextResponse.json({ success: true });
+    const failedServerList = targets.filter((target) => failedServers.has(target.id));
+
+    return NextResponse.json({
+      success: failedServerList.length === 0,
+      failedServers: failedServerList,
+      needsRestartConfirmation: failedServerList.length > 0,
+      message: failedServerList.length === 0
+        ? "適用が完了しました。"
+        : "以下のサーバーに適用できませんでした。全てのサーバーに反映するには、再起動が必要です。",
+    });
   } catch (error: unknown) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
