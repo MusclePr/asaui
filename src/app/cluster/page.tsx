@@ -900,7 +900,7 @@ export default function ClusterSettingsPage() {
                           {envConfig.ASA_SESSION_PREFIX || ""}{envConfig[`ASA${i}_SESSION_NAME`] || ""}
                         </span>
                       </div>
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 items-end">
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(16rem,2fr)_minmax(12rem,1fr)_minmax(7rem,0.5fr)_minmax(7rem,0.5fr)] items-end">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <label className="text-xs font-semibold">マップ</label>
