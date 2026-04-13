@@ -1010,34 +1010,34 @@ export default function ClusterSettingsPage() {
                   </div>
                 </div>
 
-                {isAdmin && (
-                  <div className="space-y-4 border-t pt-6">
-                    <h4 className="text-lg font-semibold">パスワード</h4>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <label className="text-sm font-medium">参加パスワード <span className="text-xs text-muted-foreground font-normal">(SERVER_PASSWORD)</span></label>
-                          <button
-                            onClick={() => resetStringField("SERVER_PASSWORD")}
-                            className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
-                            type="button"
-                          >
-                            デフォルトに戻す
-                          </button>
-                        </div>
-                        <PasswordInput
-                          value={settings.SERVER_PASSWORD}
-                          onChange={(e) =>
-                            setSettings((prev) => ({
-                              ...prev,
-                              SERVER_PASSWORD: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 border rounded bg-background text-sm"
-                          maxLength={32}
-                          placeholder="（空なら未設定）"
-                        />
+                <div className="space-y-4 border-t pt-6">
+                  <h4 className="text-lg font-semibold">パスワード</h4>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-medium">参加パスワード <span className="text-xs text-muted-foreground font-normal">(SERVER_PASSWORD)</span></label>
+                        <button
+                          onClick={() => resetStringField("SERVER_PASSWORD")}
+                          className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                          type="button"
+                        >
+                          デフォルトに戻す
+                        </button>
                       </div>
+                      <PasswordInput
+                        value={settings.SERVER_PASSWORD}
+                        onChange={(e) =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            SERVER_PASSWORD: e.target.value,
+                          }))
+                        }
+                        className="w-full px-3 py-2 border rounded bg-background text-sm"
+                        maxLength={32}
+                        placeholder="（空なら未設定）"
+                      />
+                    </div>
+                    {isAdmin && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <label className="text-sm font-medium">管理者パスワード <span className="text-xs text-muted-foreground font-normal">(ARK_ADMIN_PASSWORD)</span></label>
@@ -1062,9 +1062,9 @@ export default function ClusterSettingsPage() {
                           placeholder="（空なら未設定）"
                         />
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
+                </div>
 
                 <div className="space-y-4 border-t pt-6">
                   <div className="flex items-center justify-between gap-4">

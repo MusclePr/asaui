@@ -66,6 +66,7 @@ function writeOverrides(overrides: Record<string, string>) {
 export async function GET() {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
+  const isAdmin = session.user?.role === "admin";
 
   try {
     ensureBaseEnvExists();
@@ -79,7 +80,7 @@ export async function GET() {
     const defaultMaxPlayers = Number(base.MAX_PLAYERS ?? "");
     if (Number.isFinite(defaultMaxPlayers)) defaults.MAX_PLAYERS = defaultMaxPlayers;
     defaults.SERVER_PASSWORD = base.SERVER_PASSWORD ?? "";
-    defaults.ARK_ADMIN_PASSWORD = base.ARK_ADMIN_PASSWORD ?? "";
+    defaults.ARK_ADMIN_PASSWORD = isAdmin ? (base.ARK_ADMIN_PASSWORD ?? "") : "";
     defaults.CLUSTER_ID = base.CLUSTER_ID ?? "";
     defaults.MODS = base.MODS ?? "";
     defaults.ALL_MODS = base.ALL_MODS ?? "";
@@ -95,8 +96,9 @@ export async function GET() {
 
     body.SERVER_PASSWORD =
       currentOverrides.SERVER_PASSWORD ?? base.SERVER_PASSWORD ?? "";
-    body.ARK_ADMIN_PASSWORD =
-      currentOverrides.ARK_ADMIN_PASSWORD ?? base.ARK_ADMIN_PASSWORD ?? "";
+    body.ARK_ADMIN_PASSWORD = isAdmin
+      ? (currentOverrides.ARK_ADMIN_PASSWORD ?? base.ARK_ADMIN_PASSWORD ?? "")
+      : "";
     body.CLUSTER_ID = currentOverrides.CLUSTER_ID ?? base.CLUSTER_ID ?? "";
     body.MODS = currentOverrides.MODS ?? base.MODS ?? "";
     body.ALL_MODS = currentOverrides.ALL_MODS ?? base.ALL_MODS ?? "";
@@ -110,6 +112,9 @@ export async function GET() {
       ...base,
       ...currentOverrides,
     };
+    if (!isAdmin) {
+      effective.ARK_ADMIN_PASSWORD = "";
+    }
 
     return NextResponse.json({ settings: body, defaults, effective });
   } catch (error: unknown) {
@@ -120,6 +125,7 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
+  const isAdmin = session.user?.role === "admin";
 
   try {
     const raw = (await req.json()) as Body;
@@ -130,7 +136,9 @@ export async function PUT(req: NextRequest) {
     const serverPassV = validatePassword(raw.SERVER_PASSWORD ?? "", "SERVER_PASSWORD");
     if (!serverPassV.ok) return NextResponse.json({ error: serverPassV.error }, { status: 400 });
 
-    const adminPassV = validatePassword(raw.ARK_ADMIN_PASSWORD ?? "", "ARK_ADMIN_PASSWORD");
+    const adminPassV = isAdmin
+      ? validatePassword(raw.ARK_ADMIN_PASSWORD ?? "", "ARK_ADMIN_PASSWORD")
+      : { ok: true as const, value: undefined };
     if (!adminPassV.ok) return NextResponse.json({ error: adminPassV.error }, { status: 400 });
 
     const clusterIdV = validatePassword(raw.CLUSTER_ID ?? "", "CLUSTER_ID");
@@ -148,10 +156,19 @@ export async function PUT(req: NextRequest) {
     const extraDashV = validateExtra(raw.ARK_EXTRA_DASH_OPTS ?? "", "ARK_EXTRA_DASH_OPTS");
     if (!extraDashV.ok) return NextResponse.json({ error: extraDashV.error }, { status: 400 });
 
+    ensureBaseEnvExists();
+    const baseText = fs.existsSync(CLUSTER_COMMON_ENV_DEFAULT_FILE)
+      ? fs.readFileSync(CLUSTER_COMMON_ENV_DEFAULT_FILE, "utf8")
+      : "";
+    const base = parseEnvText(baseText);
+    const currentOverrides = readOverrides();
+    const currentAdminPassword =
+      currentOverrides.ARK_ADMIN_PASSWORD ?? base.ARK_ADMIN_PASSWORD ?? "";
+
     const overridesToWrite: Record<string, string> = {
       MAX_PLAYERS: maxPlayersV.value !== undefined ? String(maxPlayersV.value) : "",
       SERVER_PASSWORD: serverPassV.value ?? "",
-      ARK_ADMIN_PASSWORD: adminPassV.value ?? "",
+      ARK_ADMIN_PASSWORD: isAdmin ? (adminPassV.value ?? "") : currentAdminPassword,
       CLUSTER_ID: clusterIdV.value ?? "",
       MODS: modsV.value ?? "",
       ALL_MODS: allModsV.value ?? "",
@@ -162,12 +179,10 @@ export async function PUT(req: NextRequest) {
     // Persist override file (comment-less).
     writeOverrides(overridesToWrite);
 
-    ensureBaseEnvExists();
-    const baseText = fs.existsSync(CLUSTER_COMMON_ENV_DEFAULT_FILE) 
-      ? fs.readFileSync(CLUSTER_COMMON_ENV_DEFAULT_FILE, "utf8")
-      : "";
-    const base = parseEnvText(baseText);
     const effective = { ...base, ...overridesToWrite };
+    if (!isAdmin) {
+      effective.ARK_ADMIN_PASSWORD = "";
+    }
 
     await refreshServerCache();
 
