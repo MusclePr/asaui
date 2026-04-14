@@ -95,15 +95,13 @@ function add_asa_section() {
         extends:
             file: common.yml
             service: asa
-        container_name: \${ASA${no}_CONTAINER_NAME}
+        container_name: \${COMPOSE_PROJECT_NAME}_asa${no}
         ports:
             - "\${ASA${no}_SERVER_PORT}:\${ASA${no}_SERVER_PORT}/udp"
-            - "\${ASA${no}_QUERY_PORT}:\${ASA${no}_QUERY_PORT}/udp"
         environment:
             - "SERVER_MAP=\${ASA${no}_SERVER_MAP}"
             - "SESSION_NAME=\${ASA_SESSION_PREFIX}\${ASA${no}_SESSION_NAME}"
             - "SERVER_PORT=\${ASA${no}_SERVER_PORT}"
-            - "QUERY_PORT=\${ASA${no}_QUERY_PORT}"
             - "DISCORD_WEBHOOK_URL=\${ASA${no}_DISCORD_WEBHOOK_URL:-\${ASA_DISCORD_WEBHOOK_URL}}"
             - "LOG_FILE=ShooterGame_asa${no}.log" # Avoid log file conflicts
 EOF

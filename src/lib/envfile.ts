@@ -261,7 +261,7 @@ export function getAsaServerKeys(index: number) {
     MAP: `ASA${index}_SERVER_MAP`,
     NAME: `ASA${index}_SESSION_NAME`,
     PORT: `ASA${index}_SERVER_PORT`,
-    QUERY: `ASA${index}_QUERY_PORT`,
+    //QUERY: `ASA${index}_QUERY_PORT`,
     CONTAINER: `ASA${index}_CONTAINER_NAME`,
     WEBHOOK: `ASA${index}_DISCORD_WEBHOOK_URL`,
   } as const;

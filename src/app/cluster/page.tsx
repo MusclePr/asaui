@@ -950,6 +950,7 @@ export default function ClusterSettingsPage() {
                                 className="w-full px-3 py-2 border rounded bg-muted text-sm text-muted-foreground cursor-not-allowed"
                               />
                             </div>
+                            {/*
                             <div className="space-y-1">
                               <label className="text-xs font-semibold">QUERY ポート</label>
                               <input
@@ -959,6 +960,7 @@ export default function ClusterSettingsPage() {
                                 className="w-full px-3 py-2 border rounded bg-muted text-sm text-muted-foreground cursor-not-allowed"
                               />
                             </div>
+                            */}
 
                             {isAdmin && (
                               <div className="space-y-1 lg:col-span-4">
