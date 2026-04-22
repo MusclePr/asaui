@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { getContainers } from "@/lib/docker";
 import { getServers } from "@/lib/config";
-import { refreshServerCache } from "@/lib/compose";
+import { isServerCacheSchemaOutdated, refreshServerCache } from "@/lib/compose";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected error";
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // If no servers are cached, or if forceRefresh is requested, trigger a refresh
-    if (getServers().length === 0 || forceRefresh) {
+    if (getServers().length === 0 || forceRefresh || isServerCacheSchemaOutdated()) {
       await refreshServerCache();
     }
     const containers = await getContainers();

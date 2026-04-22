@@ -885,8 +885,8 @@ export default function ClusterSettingsPage() {
                   if (mapValue === undefined) return null;
                   if (!isAdmin && mapValue === "") return null;
 
-                  const containerName = envConfig[`ASA${i}_CONTAINER_NAME`];
-                  const container = containers.find(c => c.name === containerName);
+                  const targetBaseMap = getBaseMapName(mapValue);
+                  const container = containers.find((c) => getBaseMapName(c.mapRaw || "") === targetBaseMap);
                   const onlineCount = container?.onlinePlayers?.length || 0;
                   const offlineCount = container?.offlinePlayers?.length || 0;
                   const hasPlayers = (onlineCount + offlineCount) > 0;

@@ -7,7 +7,9 @@ export function getServers() {
     containerName: s.containerName,
     sessionName: s.sessionName,
     map: s.mapRaw,
-    port: s.port
+    port: s.port,
+    clusterId: s.clusterId,
+    extraDashOpts: s.extraDashOpts,
   }));
 }
 

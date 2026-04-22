@@ -15,6 +15,85 @@ type ClusterOperationStatus = {
   type?: "backup" | "restore";
 };
 
+type SavedPlayerRecord = {
+  eosId: string;
+  lastLogin: string;
+};
+
+function formatLastLogin(date: Date): string {
+  return date.toISOString().replace("T", " ").split(".")[0];
+}
+
+function isNewSaveFormatEnabled(extraDashOpts?: string): boolean {
+  if (!extraDashOpts) return false;
+  return /(^|\s)-newsaveformat(\s|$)/.test(extraDashOpts);
+}
+
+function getClusterLoginDir(clusterId: string): string {
+  return path.resolve(ARK_SAVE_BASE_DIR, "..", "Cluster", ".login", clusterId);
+}
+
+function scanArkProfilePlayers(mapRaw: string): SavedPlayerRecord[] {
+  const saveDir = path.join(ARK_SAVE_BASE_DIR, getBaseMapName(mapRaw));
+  if (!fs.existsSync(saveDir)) return [];
+
+  const files = fs.readdirSync(saveDir);
+  const profileFiles = files.filter((f) => f.endsWith(".arkprofile"));
+  const results: SavedPlayerRecord[] = [];
+
+  for (const file of profileFiles) {
+    const filePath = path.join(saveDir, file);
+    const stats = fs.statSync(filePath);
+    const eosId = file.replace(".arkprofile", "");
+    results.push({ eosId, lastLogin: formatLastLogin(stats.mtime) });
+  }
+
+  return results;
+}
+
+function scanLoginMapPlayers(mapRaw: string, clusterId: string): SavedPlayerRecord[] {
+  if (!clusterId) return [];
+
+  const loginDir = getClusterLoginDir(clusterId);
+  if (!fs.existsSync(loginDir)) return [];
+
+  const targetMap = getBaseMapName(mapRaw);
+  const results: SavedPlayerRecord[] = [];
+  const eosPattern = /^last_map_([a-fA-F0-9]{32})\.txt$/;
+
+  for (const file of fs.readdirSync(loginDir)) {
+    const match = eosPattern.exec(file);
+    if (!match) continue;
+
+    const filePath = path.join(loginDir, file);
+    try {
+      const mapName = fs.readFileSync(filePath, "utf8").trim();
+      if (!mapName) continue;
+      if (getBaseMapName(mapName) !== targetMap) continue;
+
+      const stats = fs.statSync(filePath);
+      results.push({
+        eosId: match[1].toLowerCase(),
+        lastLogin: formatLastLogin(stats.mtime),
+      });
+    } catch (e) {
+      console.warn(`Failed to read login map file: ${filePath}`, e);
+    }
+  }
+
+  return results;
+}
+
+export async function getSavedPlayersByMap(
+  mapRaw: string,
+  options?: { clusterId?: string; extraDashOpts?: string }
+): Promise<SavedPlayerRecord[]> {
+  if (isNewSaveFormatEnabled(options?.extraDashOpts)) {
+    return scanLoginMapPlayers(mapRaw, options?.clusterId ?? "");
+  }
+  return scanArkProfilePlayers(mapRaw);
+}
+
 function readClusterOperationStatus(): ClusterOperationStatus {
   const clusterSignalsDir = path.join(SIGNAL_DIR, 'cluster');
   if (!fs.existsSync(clusterSignalsDir)) {
@@ -172,7 +251,10 @@ export async function getContainers(): Promise<ContainerStatus[]> {
       }
 
       const onlineEosIds = onlinePlayers?.map(p => p.eosId) || [];
-      const offlinePlayers = await getOfflinePlayers(server.map, onlineEosIds);
+      const offlinePlayers = await getOfflinePlayers(server.map, onlineEosIds, {
+        clusterId: server.clusterId,
+        extraDashOpts: server.extraDashOpts,
+      });
 
       return {
         id: container.Id,
@@ -194,7 +276,10 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         isManaged: true
       };
     } else {
-      const offlinePlayers = await getOfflinePlayers(server.map, []);
+      const offlinePlayers = await getOfflinePlayers(server.map, [], {
+        clusterId: server.clusterId,
+        extraDashOpts: server.extraDashOpts,
+      });
       return {
         id: server.id, // Use service ID as fallback
         name: server.containerName,
@@ -289,28 +374,24 @@ export async function setContainerAutoPauseEnabled(
   }
 }
 
-export async function getOfflinePlayers(mapRaw: string, onlineEosIds: string[]): Promise<{ name: string; eosId: string; lastLogin: string }[]> {
-  const saveDir = path.join(ARK_SAVE_BASE_DIR, getBaseMapName(mapRaw));
-  if (!fs.existsSync(saveDir)) return [];
-
+export async function getOfflinePlayers(
+  mapRaw: string,
+  onlineEosIds: string[],
+  options?: { clusterId?: string; extraDashOpts?: string }
+): Promise<{ name: string; eosId: string; lastLogin: string }[]> {
   try {
-    const files = fs.readdirSync(saveDir);
-    const profileFiles = files.filter(f => f.endsWith(".arkprofile"));
+    const savedPlayers = await getSavedPlayersByMap(mapRaw, options);
     const profiles = getPlayerProfiles();
     const offlinePlayers: { name: string; eosId: string; lastLogin: string }[] = [];
 
-    for (const file of profileFiles) {
-      const eosId = file.replace(".arkprofile", "");
+    for (const saved of savedPlayers) {
+      const eosId = saved.eosId;
       if (onlineEosIds.includes(eosId)) continue;
 
-      const filePath = path.join(saveDir, file);
-      const stats = fs.statSync(filePath);
-      const lastLogin = stats.mtime.toISOString().replace("T", " ").split(".")[0];
-      
       const profile = profiles[eosId];
       const name = (profile && profile.displayName) ? profile.displayName : eosId;
 
-      offlinePlayers.push({ name, eosId, lastLogin });
+      offlinePlayers.push({ name, eosId, lastLogin: saved.lastLogin });
     }
 
     return offlinePlayers.sort((a, b) => new Date(b.lastLogin).getTime() - new Date(a.lastLogin).getTime());

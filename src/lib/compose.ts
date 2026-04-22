@@ -15,6 +15,8 @@ export interface CachedService {
   sessionName: string;
   mapRaw: string;
   port: string;
+  clusterId: string;
+  extraDashOpts: string;
 }
 
 type ComposeService = {
@@ -26,6 +28,8 @@ type ComposeService = {
 type ComposeConfig = {
   services?: Record<string, ComposeService>;
 };
+
+type CachedServiceLike = Partial<CachedService> & Record<string, unknown>;
 
 const CACHE_FILE = path.join(CLUSTER_DIR, ".services.cache.json");
 
@@ -56,6 +60,8 @@ export async function refreshServerCache(): Promise<CachedService[]> {
           sessionName: typeof env.SESSION_NAME === "string" ? env.SESSION_NAME : "",
           mapRaw: typeof env.SERVER_MAP === "string" ? env.SERVER_MAP : "",
           port: typeof env.SERVER_PORT === "string" ? env.SERVER_PORT : "",
+          clusterId: typeof env.CLUSTER_ID === "string" ? env.CLUSTER_ID : "",
+          extraDashOpts: typeof env.ARK_EXTRA_DASH_OPTS === "string" ? env.ARK_EXTRA_DASH_OPTS : "",
         });
       }
     }
@@ -70,9 +76,39 @@ export function getCachedServers(): CachedService[] {
     return [];
   }
   try {
-    return JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+    const parsed = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8")) as Array<Partial<CachedService>>;
+    return parsed.map((service) => ({
+      id: typeof service.id === "string" ? service.id : "",
+      containerName: typeof service.containerName === "string" ? service.containerName : "",
+      image: typeof service.image === "string" ? service.image : "",
+      sessionName: typeof service.sessionName === "string" ? service.sessionName : "",
+      mapRaw: typeof service.mapRaw === "string" ? service.mapRaw : "",
+      port: typeof service.port === "string" ? service.port : "",
+      clusterId: typeof service.clusterId === "string" ? service.clusterId : "",
+      extraDashOpts: typeof service.extraDashOpts === "string" ? service.extraDashOpts : "",
+    }));
   } catch (e) {
     console.error("Failed to read server cache", e);
     return [];
+  }
+}
+
+export function isServerCacheSchemaOutdated(): boolean {
+  if (!fs.existsSync(CACHE_FILE)) return true;
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8")) as unknown;
+    if (!Array.isArray(parsed)) return true;
+
+    for (const item of parsed) {
+      if (!item || typeof item !== "object") return true;
+      const service = item as CachedServiceLike;
+      if (!Object.prototype.hasOwnProperty.call(service, "clusterId")) return true;
+      if (!Object.prototype.hasOwnProperty.call(service, "extraDashOpts")) return true;
+    }
+
+    return false;
+  } catch {
+    return true;
   }
 }

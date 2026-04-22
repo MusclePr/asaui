@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import { ARK_SAVE_BASE_DIR, getServers } from "@/lib/config";
-import { getBaseMapName } from "@/lib/maps";
+import { getServers } from "@/lib/config";
 import { getBypassList, getPlayerProfiles, getWhitelist, ensurePlayerProfiles } from "@/lib/storage";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
+import { getSavedPlayersByMap } from "@/lib/docker";
+import { isServerCacheSchemaOutdated, refreshServerCache } from "@/lib/compose";
 
 type PlayerEntry = {
   name: string;
@@ -30,24 +29,25 @@ export async function GET() {
     const playersMap = new Map<string, PlayerEntry>();
     const allFoundEosIds = new Set<string>();
 
+    if (getServers().length === 0 || isServerCacheSchemaOutdated()) {
+      await refreshServerCache();
+    }
+
     const servers = getServers();
-    // Scan each server's save directory
+    // Scan each server's save data by configured format.
     for (const server of servers) {
-      const saveDir = path.join(ARK_SAVE_BASE_DIR, getBaseMapName(server.map));
-      if (!fs.existsSync(saveDir)) continue;
+      const savedPlayers = await getSavedPlayersByMap(server.map, {
+        clusterId: server.clusterId,
+        extraDashOpts: server.extraDashOpts,
+      });
 
-      const files = fs.readdirSync(saveDir);
-      const profileFiles = files.filter(f => f.endsWith(".arkprofile"));
-
-      for (const file of profileFiles) {
-        const filePath = path.join(saveDir, file);
-        const stats = fs.statSync(filePath);
-        const eosId = file.replace(".arkprofile", "");
+      for (const saved of savedPlayers) {
+        const eosId = saved.eosId;
         allFoundEosIds.add(eosId);
-        
+
         // Simple name extraction (mock or read file header if needed)
         // For now, use EOS ID as name if multiple maps found, keep latest login
-        const lastLogin = stats.mtime.toISOString().replace("T", " ").split(".")[0];
+        const lastLogin = saved.lastLogin;
 
         const displayName = profiles[eosId]?.displayName?.trim() || undefined;
         const current = playersMap.get(eosId);
