@@ -106,5 +106,10 @@ else
 fi
 echo "Execution identity: $(id nextjs)"
 
+# Update cluster directory with latest template files if compose.yml is missing
+if [ ! -f "/cluster/compose.yml" ]; then
+    su -- nextjs -c "/cluster.template/update.sh"
+fi
+
 # Use gosu with only the username to ensure all supplementary groups are loaded
 exec gosu nextjs "$@"

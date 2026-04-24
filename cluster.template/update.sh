@@ -22,15 +22,7 @@ SYSTEM_FILES=(
     defaults/common.env
 )
 
-if [ ! -d "$CLUSTER_DIR" ] || [ ! -f "$CLUSTER_DIR/compose.yml" ]; then
-    read -p "Cluster directory '$CLUSTER_DIR' does not exist. Do you want to create it with the latest template files? (Y/n) " answer
-    if [[ "$answer" =~ ^[Nn] ]]; then
-        echo "Aborting update. Please create the cluster directory and populate it with the latest template files before running this script."
-        exit 1
-    fi
-else
-    echo "Cluster directory: $CLUSTER_DIR"
-fi
+echo "Cluster directory: $CLUSTER_DIR"
 
 # CLUSTER_DIR ディレクトリの有無に関わらず、最新のテンプレートファイルで更新します。
 echo "Updating existing cluster directory with latest template files..."
