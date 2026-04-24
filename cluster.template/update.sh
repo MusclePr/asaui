@@ -2,7 +2,14 @@
 
 set -e
 
-TEMPLATE_DIR="$(dirname "$0")"
+TEMPLATE_DIR="$(readlink -f "$(dirname "$0")")"
+CLUSTER_DIR=$(readlink -m "${CLUSTER_DIR:-${TEMPLATE_DIR}/../cluster}")
+
+if [ ! -f "${TEMPLATE_DIR}/compose.yml" ]; then
+    echo "Error: compose.yml not found in template directory."
+    exit 1
+fi
+TEMPLATE_SERVICE=$(cat ${TEMPLATE_DIR}/compose.yml | sed -n '/^# <<<</,/^# >>>>/{ /<<<</d; />>>>/d; p;}' | sed 's/^# /  /')
 
 # cluster ディレクトリが既に存在していれば、その設定を引き継ぎ、最新の構成に更新します
 # 最新の構成は cluster.template ディレクトリにあります。
@@ -15,7 +22,6 @@ SYSTEM_FILES=(
     defaults/common.env
 )
 
-CLUSTER_DIR="${CLUSTER_DIR:-${TEMPLATE_DIR}/../cluster}"
 if [ ! -d "$CLUSTER_DIR" ] || [ ! -f "$CLUSTER_DIR/compose.yml" ]; then
     read -p "Cluster directory '$CLUSTER_DIR' does not exist. Do you want to create it with the latest template files? (Y/n) " answer
     if [[ "$answer" =~ ^[Nn] ]]; then
@@ -88,23 +94,9 @@ function update_user_file() {
 function add_asa_section() {
     local file="$1"
     local no="$2"
+    local section=$(echo "${TEMPLATE_SERVICE}" | sed "s/<no>/${no}/g")
 
-    cat <<EOF >> "$file"
-
-    asa${no}:
-        extends:
-            file: common.yml
-            service: asa
-        container_name: \${COMPOSE_PROJECT_NAME}_asa${no}
-        ports:
-            - "\${ASA${no}_SERVER_PORT}:\${ASA${no}_SERVER_PORT}/udp"
-        environment:
-            - "SERVER_MAP=\${ASA${no}_SERVER_MAP}"
-            - "SESSION_NAME=\${ASA_SESSION_PREFIX}\${ASA${no}_SESSION_NAME}"
-            - "SERVER_PORT=\${ASA${no}_SERVER_PORT}"
-            - "DISCORD_WEBHOOK_URL=\${ASA${no}_DISCORD_WEBHOOK_URL:-\${ASA_DISCORD_WEBHOOK_URL}}"
-            - "LOG_FILE=ShooterGame_asa${no}.log" # Avoid log file conflicts
-EOF
+    echo "${section}" >> "$file"
 }
 
 # テンプレートのレイアウトに沿ってキーにマッチする既存の設定値があれば値を更新します。
@@ -118,15 +110,12 @@ declare -i map_count=1 nodes
 nodes=$(grep -E "^ASA0_CLUSTER_NODES=" "$CLUSTER_DIR/.env" | cut -d= -f2)
 echo "services:" > "$CLUSTER_DIR/compose.override.yml"
 for i in {1..9}; do
+    [[ -n "$nodes" && $i -ge $nodes ]] && break
+    if ! grep -qE "^ASA${i}_SERVER_MAP=[[:alnum:]_]+" "$CLUSTER_DIR/.env"; then break; fi
     # ^ASA${i}_SERVER_MAP=\w+ で始まる行が $CLUSTER_DIR/.env ファイルに存在すれば、そのマップは有効とみなします
-    if grep -qE "^ASA${i}_SERVER_MAP=[[:alnum:]_]+" "$CLUSTER_DIR/.env"; then
-        add_asa_section "$CLUSTER_DIR/compose.override.yml" "$i"
-        ((map_count++))
-        if [[ -n "$nodes" && $i -ge $nodes ]]; then
-            break
-        fi
-    fi
+    add_asa_section "$CLUSTER_DIR/compose.override.yml" "$i"
 done
+map_count=$i
 echo "マップ数: $map_count"
 
 if [[ -n "$nodes" ]]; then
@@ -140,4 +129,3 @@ else
     # $CLUSTER_DIR/.env ファイルの最後に ASA0_CLUSTER_NODES=マップ数 を追加します
     echo "ASA0_CLUSTER_NODES=$map_count" >> "$CLUSTER_DIR/.env"
 fi
-echo "ASA0_CLUSTER_NODES=$map_count"
