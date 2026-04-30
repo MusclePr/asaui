@@ -151,6 +151,32 @@ export default function ClusterSettingsPage() {
   const [mapsWithSaveData, setMapsWithSaveData] = useState<Set<string>>(new Set());
 
   const clusterNodeCount = useMemo(() => resolveClusterNodeCount(envConfig), [envConfig]);
+  const savedPlayerCountsByBaseMap = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const container of containers) {
+      const baseMap = getBaseMapName(container.mapRaw || "");
+      if (!baseMap) continue;
+      const online = container.onlinePlayers?.length || 0;
+      const offline = container.offlinePlayers?.length || 0;
+      counts.set(baseMap, (counts.get(baseMap) || 0) + online + offline);
+    }
+    return counts;
+  }, [containers]);
+
+  const mapDuplicateWarning = useMemo(() => {
+    const seenByBase = new Map<string, { map: string; server: string }>();
+    for (let i = 0; i < clusterNodeCount; i++) {
+      const map = envConfig[`ASA${i}_SERVER_MAP`];
+      if (!map) continue;
+      const baseMapId = getBaseMapName(map);
+      const previous = seenByBase.get(baseMapId);
+      if (previous) {
+        return `マップの重複選択は禁止です。${previous.map} (${previous.server}) / ${map} (ASA${i}) は同じ「${baseMapId}」を参照します。`;
+      }
+      seenByBase.set(baseMapId, { map, server: `ASA${i}` });
+    }
+    return null;
+  }, [clusterNodeCount, envConfig]);
 
   // Dynamic Settings (dynamicconfig.ini)
   const [dynamicConfig, setDynamicConfig] = useState<DynamicConfig>({});
@@ -373,22 +399,10 @@ export default function ClusterSettingsPage() {
     const e2 = validateExtra(settings.ARK_EXTRA_DASH_OPTS, "ARK_EXTRA_DASH_OPTS");
     if (e2) return e2;
 
-    // Validate map duplication
-    const seenByBase = new Map<string, string>();
-    for (let i = 0; i < 10; i++) {
-      const map = envConfig[`ASA${i}_SERVER_MAP`];
-      if (map) {
-        const baseMapId = getBaseMapName(map);
-        const previous = seenByBase.get(baseMapId);
-        if (previous) {
-          return `同じマップID「${baseMapId}」が重複しています（${previous} / ${map}）。`;
-        }
-        seenByBase.set(baseMapId, map);
-      }
-    }
+    if (mapDuplicateWarning) return mapDuplicateWarning;
 
     return null;
-  }, [settings, modsCsv, allModsCsv, envConfig]);
+  }, [settings, modsCsv, allModsCsv, mapDuplicateWarning]);
 
   const saveAll = async () => {
     setError(null);
@@ -878,6 +892,11 @@ export default function ClusterSettingsPage() {
                   {simpleMode ? "詳細設定を表示" : "シンプルモード"}
                 </button>
               </div>
+              {mapDuplicateWarning && (
+                <div className="p-3 border border-destructive/40 bg-destructive/10 text-destructive rounded-lg text-sm font-semibold">
+                  {mapDuplicateWarning}
+                </div>
+              )}
               <div className="grid gap-4">
                 {Array.from({ length: clusterNodeCount }).map((_, i) => {
                   const mapKey = `ASA${i}_SERVER_MAP`;
@@ -886,10 +905,8 @@ export default function ClusterSettingsPage() {
                   if (!isAdmin && mapValue === "") return null;
 
                   const targetBaseMap = getBaseMapName(mapValue);
-                  const container = containers.find((c) => getBaseMapName(c.mapRaw || "") === targetBaseMap);
-                  const onlineCount = container?.onlinePlayers?.length || 0;
-                  const offlineCount = container?.offlinePlayers?.length || 0;
-                  const hasPlayers = (onlineCount + offlineCount) > 0;
+                  const remainingPlayers = savedPlayerCountsByBaseMap.get(targetBaseMap) || 0;
+                  const hasRemainingPlayers = remainingPlayers > 0;
                   return (
                     <div key={i} className="p-4 bg-card border rounded-lg shadow-sm">
                       <div className="flex items-center gap-2 mb-3">
@@ -904,26 +921,25 @@ export default function ClusterSettingsPage() {
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <label className="text-xs font-semibold">マップ</label>
-                            {hasPlayers && (
+                            {hasRemainingPlayers && (
                               <span className="text-[10px] text-destructive font-bold flex items-center gap-0.5">
                                 <Users className="h-3 w-3" />
-                                変更不可 ({onlineCount + offlineCount}人)
+                                変更注意(残留{remainingPlayers}名)
                               </span>
                             )}
                           </div>
-                          <p className="text-[10px] text-muted-foreground">● セーブデータあり</p>
+                          <p className="text-[10px] text-muted-foreground">セーブデータありは「● 人数 名」で表示</p>
                           <select
                             value={mapValue ?? ""}
                             onChange={(e) => updateEnv(mapKey, e.target.value)}
-                            disabled={hasPlayers}
-                            className={`w-full px-3 py-2 border rounded text-sm ${hasPlayers ? "bg-muted cursor-not-allowed" : "bg-background"}`}
+                            className="w-full px-3 py-2 border rounded text-sm bg-background"
                           >
                             {Object.entries(ASA_MAP_NAMES).map(([raw, display]) => {
                               const hasSaveData = mapsWithSaveData.has(raw);
+                              const savePlayerCount = savedPlayerCountsByBaseMap.get(getBaseMapName(raw)) || 0;
                               return (
                                 <option key={raw} value={raw}>
-                                  {hasSaveData ? "● " : ""}
-                                  {display} ({raw})
+                                  {display}（{raw}）{hasSaveData ? `● ${savePlayerCount} 名` : ""}
                                 </option>
                               );
                             })}

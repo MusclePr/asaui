@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
           const selectedMaps = Array.from(mapOwnersByBase[baseMapId].rawMaps).join(" / ");
           return NextResponse.json(
             {
-              error: `同じマップID「${baseMapId}」が重複しています（選択: ${selectedMaps} / サーバー: ${mapOwnersByBase[baseMapId].owners.join(" / ")}）。各サーバーには異なるマップIDを指定してください。`,
+              error: `マップの重複選択は禁止です。選択: ${selectedMaps}（サーバー: ${mapOwnersByBase[baseMapId].owners.join(" / ")}）は同じマップID「${baseMapId}」を参照します。`,
             },
             { status: 400 }
           );
