@@ -52,7 +52,7 @@ function getServerOperationLabel(container: ContainerStatus, localAction?: Serve
 type ClusterComposeResponse = {
   success?: boolean;
   error?: string;
-  action?: "up" | "down" | "cleanup-signals";
+  action?: "up" | "down";
   command?: string;
   args?: string[];
   cwd?: string;
@@ -65,7 +65,7 @@ type ClusterComposeResponse = {
 };
 
 type ClusterLog = {
-  action: "up" | "down" | "cleanup-signals";
+  action: "up" | "down";
   ok: boolean;
   ranAt: number;
   command: string;
@@ -84,7 +84,7 @@ export default function Dashboard() {
   const [containers, setContainers] = useState<ContainerStatus[]>([]);
   const [autoPauseFeatureEnabled, setAutoPauseFeatureEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [clusterBusy, setClusterBusy] = useState<"up" | "down" | "cleanup-signals" | null>(null);
+  const [clusterBusy, setClusterBusy] = useState<"up" | "down" | null>(null);
   const [actionsInProgress, setActionsInProgress] = useState<Record<string, ServerActionType | null>>({});
   const [autoPauseActionsInProgress, setAutoPauseActionsInProgress] = useState<Record<string, boolean>>({});
   const [clusterLog, setClusterLog] = useState<ClusterLog | null>(null);
@@ -333,14 +333,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleCluster = async (action: "up" | "down" | "cleanup-signals") => {
-    if (action === "cleanup-signals") {
-      const ok = confirm(
-        "クリーンアップを実行しますか？\n\n実行条件:\n- .signals/*/*.lock が存在する\n- 一括停止状態（compose 管理コンテナが0件）"
-      );
-      if (!ok) return;
-    }
-
+  const handleCluster = async (action: "up" | "down") => {
     setClusterBusy(action);
     setClusterLog(null);
     try {
@@ -464,14 +457,6 @@ export default function Dashboard() {
               一括停止
             </button>
             <button
-              onClick={() => handleCluster("cleanup-signals")}
-              className="px-4 py-2 bg-amber-600 text-white rounded text-sm hover:bg-amber-500 disabled:opacity-60"
-              disabled={clusterBusy !== null}
-              title="停止中かつ lock 存在時のみ .signals を削除"
-            >
-              クリーンアップ
-            </button>
-            <button
               onClick={() => {
                 setShowUnregisteredModal(true);
                 void fetchUnregisteredCandidates();
@@ -501,9 +486,7 @@ export default function Dashboard() {
             <summary className="cursor-pointer select-none font-medium">
               {clusterLog.action === "up"
                 ? "一括起動"
-                : clusterLog.action === "down"
-                  ? "一括停止"
-                  : "クリーンアップ"} 実行ログ：
+                : "一括停止"} 実行ログ：
               <span className={clusterLog.ok ? "text-green-600" : "text-destructive"}>
                 {clusterLog.ok ? "成功" : "失敗"}
               </span>
