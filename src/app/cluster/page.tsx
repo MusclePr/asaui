@@ -187,9 +187,15 @@ export default function ClusterSettingsPage() {
   const [iniContent, setIniContent] = useState("");
   const [iniBaseContent, setIniBaseContent] = useState("");
   const [iniRevision, setIniRevision] = useState("");
+  const [iniSourceTarget, setIniSourceTarget] = useState<"ini" | "tmp">("ini");
   const [iniConflict, setIniConflict] = useState<IniConflictState | null>(null);
   const [loadingIni, setLoadingIni] = useState(false);
   const [savingIni, setSavingIni] = useState(false);
+
+  const currentIniSaveTarget = useMemo<"ini" | "tmp">(
+    () => (containers.some((container) => container.isManaged && container.state === "running") ? "tmp" : "ini"),
+    [containers]
+  );
 
   const hasIniConflict = iniConflict !== null;
   const canResolveIniConflict = hasIniConflict && iniContent !== iniConflict.yoursContent;
@@ -217,6 +223,7 @@ export default function ClusterSettingsPage() {
       setIniContent(data.content || "");
       setIniBaseContent(data.content || "");
       setIniRevision(data.revision || "");
+      setIniSourceTarget(data.sourceTarget === "tmp" ? "tmp" : "ini");
       setIniConflict(null);
     } catch (e: unknown) {
       setError(getErrorMessage(e));
@@ -260,6 +267,7 @@ export default function ClusterSettingsPage() {
         });
         setIniBaseContent(data.content || "");
         setIniRevision(data.revision || "");
+        setIniSourceTarget(data.saveTarget === "tmp" ? "tmp" : "ini");
         setError(data.message || "外部更新との競合を検出しました。競合を解消するまで保存できません。");
         return;
       }
@@ -269,8 +277,10 @@ export default function ClusterSettingsPage() {
       setIniContent(data.content || iniContent);
       setIniBaseContent(data.content || iniContent);
       setIniRevision(data.revision || iniRevision);
+      setIniSourceTarget(data.saveTarget === "tmp" ? "tmp" : "ini");
       setIniConflict(null);
-      setMessage(data.message);
+      const targetLabel = data.saveTarget === "tmp" ? ".tmp に保存" : ".ini に保存";
+      setMessage(`${data.message} (${targetLabel})`);
     } catch (e: unknown) {
       setError(getErrorMessage(e));
     } finally {
@@ -1435,6 +1445,8 @@ export default function ClusterSettingsPage() {
                     ) : (
                       <p>常に編集できます。保存内容は次回起動時に反映されます。</p>
                     )}
+                    <p>現在の編集元: {iniSourceTarget === "tmp" ? ".tmp (保留中の内容)" : ".ini (本体)"}</p>
+                    <p>現在の保存先: {currentIniSaveTarget === "tmp" ? ".ini.tmp (コンテナ稼働中)" : ".ini (全停止中)"}</p>
                   </div>
                 </div>
 

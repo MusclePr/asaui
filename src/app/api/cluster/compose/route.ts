@@ -6,6 +6,8 @@ import {
   CLUSTER_DIR,
 } from "@/lib/cluster";
 import { runDockerCompose } from "@/lib/compose";
+import { areAllManagedServersStopped, waitForPendingConfigTempToClearBeforeStart } from "@/lib/docker";
+import { applyPendingServerConfigTempFiles, listPendingServerConfigTempFiles } from "@/lib/serverConfig";
 
 type Action = "up" | "down";
 
@@ -42,12 +44,56 @@ export async function POST(req: NextRequest) {
     ];
 
     if (action === "up") {
+      const waitResult = await waitForPendingConfigTempToClearBeforeStart();
+      if (waitResult.pendingConfigFiles.length > 0) {
+        return NextResponse.json(
+          {
+            error: `Pending .ini.tmp files still exist after waiting: ${waitResult.pendingConfigFiles.join(", ")}`,
+            action,
+            command: "docker",
+            args,
+            cwd: CLUSTER_DIR,
+            waitedForPendingTmp: waitResult.waited,
+            pendingConfigFiles: waitResult.pendingConfigFiles,
+          },
+          { status: 500 }
+        );
+      }
       args.push("-d");
     }
 
     const startedAt = Date.now();
     const { stdout, stderr } = await runDockerCompose(args, { cwd: CLUSTER_DIR });
     const finishedAt = Date.now();
+
+    let appliedConfigFiles: string[] = [];
+    let pendingConfigFiles: string[] = listPendingServerConfigTempFiles().map((item) => item.filename);
+    if (action === "down") {
+      const allStopped = await areAllManagedServersStopped();
+      if (allStopped) {
+        const applyResult = applyPendingServerConfigTempFiles();
+        if (applyResult.failed.length > 0) {
+          const details = applyResult.failed.map((item) => `${item.filename}: ${item.error}`).join(", ");
+          return NextResponse.json(
+            {
+              error: `Failed to apply pending .ini.tmp files: ${details}`,
+              action,
+              command: "docker",
+              args,
+              cwd: CLUSTER_DIR,
+              startedAt,
+              finishedAt,
+              durationMs: finishedAt - startedAt,
+              stdout,
+              stderr,
+            },
+            { status: 500 }
+          );
+        }
+        appliedConfigFiles = applyResult.applied;
+        pendingConfigFiles = listPendingServerConfigTempFiles().map((item) => item.filename);
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -58,6 +104,8 @@ export async function POST(req: NextRequest) {
       startedAt,
       finishedAt,
       durationMs: finishedAt - startedAt,
+      appliedConfigFiles,
+      pendingConfigFiles,
       stdout,
       stderr,
     });

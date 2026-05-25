@@ -7,6 +7,7 @@ import { getMapDisplayName, getBaseMapName } from './maps';
 import { getPlayerProfiles } from './storage';
 import { SIGNAL_DIR } from './cluster';
 import { canExecuteRcon } from './serverState';
+import { applyPendingServerConfigTempFiles, ConfigFilename, listPendingServerConfigTempFiles } from './serverConfig';
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
@@ -19,6 +20,17 @@ type SavedPlayerRecord = {
   eosId: string;
   lastLogin: string;
 };
+
+export type ManageContainerResult = {
+  action: 'start' | 'stop' | 'restart';
+  waitedForPendingTmp: boolean;
+  appliedConfigFiles: ConfigFilename[];
+  pendingConfigFiles: ConfigFilename[];
+};
+
+const STOP_WAIT_TIMEOUT_MS = 60_000;
+const START_PENDING_WAIT_TIMEOUT_MS = 30_000;
+const POLL_INTERVAL_MS = 500;
 
 function formatLastLogin(date: Date): string {
   return date.toISOString().replace("T", " ").split(".")[0];
@@ -300,14 +312,173 @@ export async function getContainers(): Promise<ContainerStatus[]> {
   }));
 }
 
-export async function manageContainer(id: string, action: string) {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function isStoppedState(state?: string): boolean {
+  const normalized = (state || '').toLowerCase();
+  return normalized === 'exited' || normalized === 'dead' || normalized === 'created';
+}
+
+async function inspectContainerState(id: string): Promise<string> {
+  const inspected = await docker.getContainer(id).inspect();
+  return inspected?.State?.Status || '';
+}
+
+async function waitForContainerStopped(id: string, timeoutMs: number): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt <= timeoutMs) {
+    try {
+      const state = await inspectContainerState(id);
+      if (isStoppedState(state)) {
+        return;
+      }
+    } catch (error: unknown) {
+      const statusCode =
+        typeof error === 'object' && error !== null && 'statusCode' in error
+          ? Number((error as { statusCode?: unknown }).statusCode)
+          : null;
+      // If container is gone, treat it as stopped.
+      if (statusCode === 404) {
+        return;
+      }
+      throw error;
+    }
+
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  throw new Error(`Timed out waiting for container to stop: ${id}`);
+}
+
+export async function hasAnyManagedServerRunning(): Promise<boolean> {
+  const containers = await getContainers();
+  return containers.some((container) => container.isManaged && container.state === 'running');
+}
+
+export async function areAllManagedServersStopped(): Promise<boolean> {
+  const containers = await getContainers();
+  const managed = containers.filter((container) => container.isManaged);
+  if (managed.length === 0) {
+    return true;
+  }
+
+  return managed.every((container) => {
+    if (container.state === 'running') return false;
+    if (container.isStopping) return false;
+    return true;
+  });
+}
+
+export async function waitForPendingConfigTempToClearBeforeStart(
+  timeoutMs = START_PENDING_WAIT_TIMEOUT_MS
+): Promise<{ waited: boolean; pendingConfigFiles: ConfigFilename[] }> {
+  const pendingNow = listPendingServerConfigTempFiles().map((item) => item.filename);
+  if (pendingNow.length === 0) {
+    return { waited: false, pendingConfigFiles: [] };
+  }
+
+  const allStopped = await areAllManagedServersStopped();
+  if (!allStopped) {
+    return { waited: false, pendingConfigFiles: pendingNow };
+  }
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt <= timeoutMs) {
+    const pending = listPendingServerConfigTempFiles().map((item) => item.filename);
+    if (pending.length === 0) {
+      return { waited: true, pendingConfigFiles: [] };
+    }
+
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  return {
+    waited: true,
+    pendingConfigFiles: listPendingServerConfigTempFiles().map((item) => item.filename),
+  };
+}
+
+function buildManageResult(action: 'start' | 'stop' | 'restart'): ManageContainerResult {
+  return {
+    action,
+    waitedForPendingTmp: false,
+    appliedConfigFiles: [],
+    pendingConfigFiles: listPendingServerConfigTempFiles().map((item) => item.filename),
+  };
+}
+
+async function applyPendingConfigFilesIfAllStopped(result: ManageContainerResult): Promise<void> {
+  const allStopped = await areAllManagedServersStopped();
+  if (!allStopped) {
+    result.pendingConfigFiles = listPendingServerConfigTempFiles().map((item) => item.filename);
+    return;
+  }
+
+  const applyResult = applyPendingServerConfigTempFiles();
+  if (applyResult.failed.length > 0) {
+    const errors = applyResult.failed.map((item) => `${item.filename}: ${item.error}`).join(', ');
+    throw new Error(`Failed to apply pending .ini.tmp files: ${errors}`);
+  }
+
+  result.appliedConfigFiles = applyResult.applied;
+  result.pendingConfigFiles = listPendingServerConfigTempFiles().map((item) => item.filename);
+}
+
+async function ensureStartSafe(result: ManageContainerResult): Promise<void> {
+  const waitResult = await waitForPendingConfigTempToClearBeforeStart();
+  result.waitedForPendingTmp = waitResult.waited;
+  result.pendingConfigFiles = waitResult.pendingConfigFiles;
+  if (waitResult.pendingConfigFiles.length > 0) {
+    throw new Error(
+      `Pending .ini.tmp files still exist after waiting: ${waitResult.pendingConfigFiles.join(', ')}`
+    );
+  }
+}
+
+export async function manageContainer(
+  id: string,
+  action: string
+): Promise<ManageContainerResult> {
+  if (action !== 'start' && action !== 'stop' && action !== 'restart') {
+    throw new Error(`Unsupported container action: ${action}`);
+  }
+
   const container = docker.getContainer(id);
+  const result = buildManageResult(action);
+
   switch (action) {
-    case "start": await container.start(); break;
-    case "stop": await container.stop(); break;
-    case "restart": await container.restart(); break;
-    default:
-      throw new Error(`Unsupported container action: ${action}`);
+    case 'start': {
+      await ensureStartSafe(result);
+      await container.start();
+      result.pendingConfigFiles = listPendingServerConfigTempFiles().map((item) => item.filename);
+      return result;
+    }
+    case 'stop': {
+      const currentState = await inspectContainerState(id);
+      if (!isStoppedState(currentState)) {
+        await container.stop();
+      }
+      await waitForContainerStopped(id, STOP_WAIT_TIMEOUT_MS);
+      await applyPendingConfigFilesIfAllStopped(result);
+      return result;
+    }
+    case 'restart': {
+      const currentState = await inspectContainerState(id);
+      if (!isStoppedState(currentState)) {
+        await container.stop();
+        await waitForContainerStopped(id, STOP_WAIT_TIMEOUT_MS);
+        await applyPendingConfigFilesIfAllStopped(result);
+      }
+
+      await ensureStartSafe(result);
+      await container.start();
+      result.pendingConfigFiles = listPendingServerConfigTempFiles().map((item) => item.filename);
+      return result;
+    }
   }
 }
 

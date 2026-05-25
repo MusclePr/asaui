@@ -6,12 +6,47 @@ import { CLUSTER_DIR } from './cluster';
 
 const SERVER_DIR = path.join(CLUSTER_DIR, 'server');
 
+const CONFIG_FILENAMES = ['GameUserSettings.ini', 'Game.ini'] as const;
+
+export type ConfigFilename = (typeof CONFIG_FILENAMES)[number];
+export type ConfigSaveTarget = 'ini' | 'tmp';
+
+export type PendingConfigTempFile = {
+  filename: ConfigFilename;
+  iniPath: string;
+  tmpPath: string;
+};
+
+type SavePathInfo = {
+  target: ConfigSaveTarget;
+  filePath: string;
+};
+
 export function getServerConfigPath(filename: string): string {
   // Only allow specific files for security
-  if (filename !== 'GameUserSettings.ini' && filename !== 'Game.ini') {
+  if (!CONFIG_FILENAMES.includes(filename as ConfigFilename)) {
     throw new Error('Invalid config filename');
   }
   return path.join(SERVER_DIR, filename);
+}
+
+function getServerConfigTmpPath(filename: string): string {
+  return `${getServerConfigPath(filename)}.tmp`;
+}
+
+function resolvePathForTarget(filename: string, target: ConfigSaveTarget): SavePathInfo {
+  const iniPath = getServerConfigPath(filename);
+  if (target === 'tmp') {
+    return {
+      target,
+      filePath: `${iniPath}.tmp`,
+    };
+  }
+
+  return {
+    target,
+    filePath: iniPath,
+  };
 }
 
 const ADMIN_PASSWORD_REGEX = /^ServerAdminPassword=.*\r?\n/m;
@@ -32,12 +67,15 @@ export type ConfigMergeConflict = {
 export type ReadServerConfigResult = {
   content: string;
   revision: string;
+  sourceTarget: ConfigSaveTarget;
+  pendingTemp: boolean;
 };
 
 export type SaveServerConfigInput = {
   baseContent: string;
   baseRevision: string;
   newContent: string;
+  saveTarget?: ConfigSaveTarget;
 };
 
 export type SaveServerConfigResult = {
@@ -45,6 +83,8 @@ export type SaveServerConfigResult = {
   message: string;
   content: string;
   revision: string;
+  saveTarget: ConfigSaveTarget;
+  pendingTemp: boolean;
   conflict?: ConfigMergeConflict;
 };
 
@@ -76,12 +116,27 @@ function buildRevision(content: string): string {
   return crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
 }
 
-function readRawServerConfig(filename: string): string {
-  const filePath = getServerConfigPath(filename);
+function readRawConfigByPath(filePath: string): string {
   if (!fs.existsSync(filePath)) {
     return '';
   }
   return fs.readFileSync(filePath, 'utf-8');
+}
+
+function readRawServerConfig(filename: string, target: ConfigSaveTarget = 'ini'): string {
+  const { filePath } = resolvePathForTarget(filename, target);
+  return readRawConfigByPath(filePath);
+}
+
+function readRawCurrentContentForSaveTarget(filename: string, saveTarget: ConfigSaveTarget): string {
+  if (saveTarget === 'tmp') {
+    const tmpPath = getServerConfigTmpPath(filename);
+    if (fs.existsSync(tmpPath)) {
+      return readRawConfigByPath(tmpPath);
+    }
+  }
+
+  return readRawServerConfig(filename, 'ini');
 }
 
 function extractOriginalPasswordLine(content: string): string {
@@ -107,11 +162,16 @@ function restorePasswordLine(content: string, originalPasswordLine: string): str
   return `${content.trimEnd()}\n\n[ServerSettings]\n${originalPasswordLine.trimEnd()}\n`;
 }
 
-function writeServerConfigContent(filename: string, newContent: string): void {
-  const filePath = getServerConfigPath(filename);
+function writeServerConfigContent(
+  filename: string,
+  newContent: string,
+  target: ConfigSaveTarget = 'ini'
+): void {
+  const { filePath } = resolvePathForTarget(filename, target);
 
   if (filename === 'GameUserSettings.ini') {
-    const originalContent = readRawServerConfig(filename);
+    // Always preserve the password from canonical .ini source.
+    const originalContent = readRawServerConfig(filename, 'ini');
     const originalPasswordLine = extractOriginalPasswordLine(originalContent);
 
     // Remove any password line from user-provided content and restore protected value.
@@ -166,7 +226,10 @@ function mergeServerConfigContent(baseContent: string, currentContent: string, n
 }
 
 export function readServerConfig(filename: string): string {
-  const rawContent = readRawServerConfig(filename);
+  const tmpPath = getServerConfigTmpPath(filename);
+  const rawContent = fs.existsSync(tmpPath)
+    ? readRawConfigByPath(tmpPath)
+    : readRawServerConfig(filename, 'ini');
   return sanitizeConfigContent(filename, rawContent);
 }
 
@@ -175,28 +238,42 @@ export function writeServerConfig(filename: string, newContent: string): void {
 }
 
 export function readServerConfigWithRevision(filename: string): ReadServerConfigResult {
+  const tmpPath = getServerConfigTmpPath(filename);
+  const sourceTarget: ConfigSaveTarget = fs.existsSync(tmpPath) ? 'tmp' : 'ini';
   const content = readServerConfig(filename);
   return {
     content,
     revision: buildRevision(content),
+    sourceTarget,
+    pendingTemp: sourceTarget === 'tmp',
   };
 }
 
 export function saveServerConfigWithMerge(filename: string, input: SaveServerConfigInput): SaveServerConfigResult {
-  const currentContent = readServerConfig(filename);
+  const saveTarget = input.saveTarget === 'tmp' ? 'tmp' : 'ini';
+  const currentContent = sanitizeConfigContent(
+    filename,
+    readRawCurrentContentForSaveTarget(filename, saveTarget)
+  );
   const currentRevision = buildRevision(currentContent);
 
   const baseContent = input.baseContent ?? '';
   const baseRevision = input.baseRevision || buildRevision(baseContent);
   const newContent = input.newContent ?? '';
+  const pendingTemp = saveTarget === 'tmp';
 
   if (baseRevision === currentRevision) {
-    writeServerConfigContent(filename, newContent);
+    writeServerConfigContent(filename, newContent, saveTarget);
     return {
       status: 'saved',
-      message: `${filename} saved successfully. Changes will be applied on next startup.`,
+      message:
+        saveTarget === 'tmp'
+          ? `${filename} saved to .tmp while server is running. Changes will be applied after stop.`
+          : `${filename} saved successfully. Changes will be applied on next startup.`,
       content: newContent,
       revision: buildRevision(newContent),
+      saveTarget,
+      pendingTemp,
     };
   }
 
@@ -207,6 +284,8 @@ export function saveServerConfigWithMerge(filename: string, input: SaveServerCon
       message: `${filename} has conflicts with external updates. Resolve conflicts before saving.`,
       content: currentContent,
       revision: currentRevision,
+      saveTarget,
+      pendingTemp,
       conflict: {
         mergedPreview: merged.mergedContent,
         chunks: merged.conflicts,
@@ -214,11 +293,53 @@ export function saveServerConfigWithMerge(filename: string, input: SaveServerCon
     };
   }
 
-  writeServerConfigContent(filename, merged.mergedContent);
+  writeServerConfigContent(filename, merged.mergedContent, saveTarget);
   return {
     status: 'merged',
-    message: `${filename} was merged with external updates and saved. Changes will be applied on next startup.`,
+    message:
+      saveTarget === 'tmp'
+        ? `${filename} was merged and saved to .tmp while server is running. Changes will be applied after stop.`
+        : `${filename} was merged with external updates and saved. Changes will be applied on next startup.`,
     content: merged.mergedContent,
     revision: buildRevision(merged.mergedContent),
+    saveTarget,
+    pendingTemp,
   };
+}
+
+export function listPendingServerConfigTempFiles(): PendingConfigTempFile[] {
+  const pending: PendingConfigTempFile[] = [];
+
+  for (const filename of CONFIG_FILENAMES) {
+    const iniPath = getServerConfigPath(filename);
+    const tmpPath = `${iniPath}.tmp`;
+    if (fs.existsSync(tmpPath)) {
+      pending.push({ filename, iniPath, tmpPath });
+    }
+  }
+
+  return pending;
+}
+
+export function applyPendingServerConfigTempFiles(): {
+  applied: ConfigFilename[];
+  failed: Array<{ filename: ConfigFilename; error: string }>;
+} {
+  const pending = listPendingServerConfigTempFiles();
+  const applied: ConfigFilename[] = [];
+  const failed: Array<{ filename: ConfigFilename; error: string }> = [];
+
+  for (const item of pending) {
+    try {
+      fs.renameSync(item.tmpPath, item.iniPath);
+      applied.push(item.filename);
+    } catch (error: unknown) {
+      failed.push({
+        filename: item.filename,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return { applied, failed };
 }

@@ -25,8 +25,8 @@ export async function POST(
       return NextResponse.json({ success: true, autoPauseEnabled: false });
     }
 
-    await manageContainer(id, action);
-    return NextResponse.json({ success: true });
+    const result = await manageContainer(id, action);
+    return NextResponse.json({ success: true, ...result });
   } catch (error: unknown) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }

@@ -111,5 +111,13 @@ if [ ! -f "/cluster/compose.yml" ]; then
     su -- nextjs -c "/cluster.template/update.sh"
 fi
 
+# Archive stale INI temp files left by abrupt shutdowns.
+if [ -d "/cluster/server" ]; then
+    find "/cluster/server" -maxdepth 1 -type f -name '*.ini.tmp' | while IFS= read -r tmp_file; do
+        [ -n "$tmp_file" ] || continue
+        mv -f "$tmp_file" "${tmp_file}.BAK" 2>/dev/null || true
+    done
+fi
+
 # Use gosu with only the username to ensure all supplementary groups are loaded
 exec gosu nextjs "$@"
