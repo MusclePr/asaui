@@ -45,6 +45,53 @@ function getClusterLoginDir(clusterId: string): string {
   return path.resolve(ARK_SAVE_BASE_DIR, "..", "Cluster", ".login", clusterId);
 }
 
+function getClusterLoginBaseDir(): string {
+  return path.resolve(ARK_SAVE_BASE_DIR, "..", "Cluster", ".login");
+}
+
+export function removeLoginMapCacheForPlayer(eosId: string, clusterIds?: string[]): number {
+  const normalizedEosId = eosId.trim().toLowerCase();
+  if (!normalizedEosId) return 0;
+
+  const loginBaseDir = getClusterLoginBaseDir();
+  if (!fs.existsSync(loginBaseDir)) return 0;
+
+  const targetClusterIds = (clusterIds ?? [])
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  const clusterDirs = targetClusterIds.length > 0
+    ? Array.from(new Set(targetClusterIds))
+    : fs
+        .readdirSync(loginBaseDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+
+  const eosPattern = /^last_map_([a-fA-F0-9]{32})\.txt$/;
+  let removedCount = 0;
+
+  for (const clusterId of clusterDirs) {
+    const loginDir = getClusterLoginDir(clusterId);
+    if (!fs.existsSync(loginDir)) continue;
+
+    for (const file of fs.readdirSync(loginDir)) {
+      const match = eosPattern.exec(file);
+      if (!match) continue;
+      if (match[1].toLowerCase() !== normalizedEosId) continue;
+
+      const filePath = path.join(loginDir, file);
+      try {
+        fs.unlinkSync(filePath);
+        removedCount += 1;
+      } catch (e) {
+        console.warn(`Failed to remove login map cache file: ${filePath}`, e);
+      }
+    }
+  }
+
+  return removedCount;
+}
+
 function scanArkProfilePlayers(mapRaw: string): SavedPlayerRecord[] {
   const saveDir = path.join(ARK_SAVE_BASE_DIR, getBaseMapName(mapRaw));
   if (!fs.existsSync(saveDir)) return [];

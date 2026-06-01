@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { removeFromBypassList, removeFromWhitelist, setPlayerDisplayName } from "@/lib/storage";
-import { execRcon } from "@/lib/docker";
+import { execRcon, removeLoginMapCacheForPlayer } from "@/lib/docker";
 import { getServers } from "@/lib/config";
 
 function getErrorMessage(error: unknown): string {
@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
     setPlayerDisplayName(eosId, null);
 
     const servers = getServers();
+    const clusterIds = servers.map((server) => server.clusterId).filter(Boolean) as string[];
+    removeLoginMapCacheForPlayer(eosId, clusterIds);
+
     const targets = servers.map(server => server.id).filter(Boolean);
     const rconResults = await Promise.allSettled(
       targets.map(id => execRcon(id, `DisallowPlayerToJoinNoCheck ${eosId}`))
