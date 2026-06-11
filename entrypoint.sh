@@ -117,6 +117,11 @@ if [ -d "/cluster/server" ]; then
         [ -n "$tmp_file" ] || continue
         mv -f "$tmp_file" "${tmp_file}.BAK" 2>/dev/null || true
     done
+    # Remove base snapshots associated with archived temp files (now orphaned).
+    find "/cluster/server" -maxdepth 1 -type f -name '*.ini.tmp.base' | while IFS= read -r base_file; do
+        [ -n "$base_file" ] || continue
+        rm -f "$base_file" 2>/dev/null || true
+    done
 fi
 
 # Use gosu with only the username to ensure all supplementary groups are loaded

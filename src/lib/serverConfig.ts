@@ -178,7 +178,26 @@ function writeServerConfigContent(
     let cleanedContent = removeAdminPassword(newContent);
     cleanedContent = restorePasswordLine(cleanedContent, originalPasswordLine);
     fs.writeFileSync(filePath, cleanedContent, 'utf-8');
+
+    // Save base snapshot of .ini for 3-way merge when applying .tmp after server stop.
+    // Only write once (on first save to .tmp) so the base reflects the pre-edit state.
+    if (target === 'tmp') {
+      const basePath = `${filePath}.base`;
+      if (!fs.existsSync(basePath)) {
+        fs.writeFileSync(basePath, originalContent, 'utf-8');
+      }
+    }
     return;
+  }
+
+  if (target === 'tmp') {
+    // Save base snapshot of .ini for 3-way merge when applying .tmp after server stop.
+    // Only write once (on first save to .tmp) so the base reflects the pre-edit state.
+    const basePath = `${filePath}.base`;
+    if (!fs.existsSync(basePath)) {
+      const originalContent = readRawServerConfig(filename, 'ini');
+      fs.writeFileSync(basePath, originalContent, 'utf-8');
+    }
   }
 
   fs.writeFileSync(filePath, newContent, 'utf-8');
@@ -331,7 +350,43 @@ export function applyPendingServerConfigTempFiles(): {
 
   for (const item of pending) {
     try {
-      fs.renameSync(item.tmpPath, item.iniPath);
+      const basePath = `${item.tmpPath}.base`;
+
+      if (fs.existsSync(basePath) && fs.existsSync(item.iniPath)) {
+        // 3-way merge:
+        //   base    = .ini snapshot taken when user first saved to .tmp
+        //   current = .ini as-is after server wrote back MOD params on shutdown
+        //   new     = .ini.tmp containing user's pending edits
+        //
+        // On conflict, user's .ini.tmp takes priority.
+        const baseRaw = readRawConfigByPath(basePath);
+        const currentRaw = readRawConfigByPath(item.iniPath);
+        const tmpRaw = readRawConfigByPath(item.tmpPath);
+
+        const baseSanitized = sanitizeConfigContent(item.filename, baseRaw);
+        const currentSanitized = sanitizeConfigContent(item.filename, currentRaw);
+        const tmpSanitized = sanitizeConfigContent(item.filename, tmpRaw);
+
+        const merged = mergeServerConfigContent(baseSanitized, currentSanitized, tmpSanitized);
+        if (merged.conflicts.length === 0) {
+          // Clean merge: apply merged result (preserves both user edits and server-written params)
+          writeServerConfigContent(item.filename, merged.mergedContent, 'ini');
+        } else {
+          // Conflict: prefer user's .ini.tmp changes
+          writeServerConfigContent(item.filename, tmpSanitized, 'ini');
+        }
+
+        fs.unlinkSync(item.tmpPath);
+        fs.unlinkSync(basePath);
+      } else {
+        // No base snapshot available: fall back to direct overwrite with .tmp
+        fs.renameSync(item.tmpPath, item.iniPath);
+        // Remove orphaned base file if present
+        if (fs.existsSync(basePath)) {
+          fs.unlinkSync(basePath);
+        }
+      }
+
       applied.push(item.filename);
     } catch (error: unknown) {
       failed.push({
