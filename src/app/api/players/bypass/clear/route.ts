@@ -8,6 +8,20 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected error";
 }
 
+function resolveActorName(session: Awaited<ReturnType<typeof requireSession>>): string {
+  const name = session?.user?.name?.trim();
+  if (name) return name;
+
+  const email = session?.user?.email?.trim();
+  if (email) return email;
+
+  return "unknown";
+}
+
+function buildBulkClearUnpauseReason(targetId: string, clearCount: number, actor: string): string {
+  return `バイパス一括解除のRCON実行前解除 api=/api/players/bypass/clear target=${targetId} clearCount=${clearCount} actor=${actor}`;
+}
+
 async function hasAnyRunningManagedContainer(): Promise<boolean> {
   try {
     const containers = await getContainers();
@@ -24,6 +38,7 @@ export async function POST() {
 
   try {
     const bypassedEosIds = getBypassList();
+    const actor = resolveActorName(session);
 
     const servers = getServers();
     const targets = servers
@@ -54,13 +69,15 @@ export async function POST() {
     }
 
     await Promise.allSettled(targets.map(async (target) => {
+      const unpauseReason = buildBulkClearUnpauseReason(target.id, bypassedEosIds.length, actor);
+
       try {
-        const unpauseOutput = await execManagerUnpause(target.id);
+        const unpauseOutput = await execManagerUnpause(target.id, unpauseReason);
         if (unpauseOutput) {
-          console.info(`manager unpause output for clear bulk bypass ${target.id}: ${unpauseOutput}`);
+          console.info(`manager unpause output for clear bulk bypass ${target.id} (reason: ${unpauseReason}): ${unpauseOutput}`);
         }
       } catch (error: unknown) {
-        console.warn(`Failed to run manager unpause for clear bulk bypass ${target.id}:`, error);
+        console.warn(`Failed to run manager unpause for clear bulk bypass ${target.id} (reason: ${unpauseReason}):`, error);
       }
     }));
 

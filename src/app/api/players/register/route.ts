@@ -8,6 +8,20 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected error";
 }
 
+function resolveActorName(session: Awaited<ReturnType<typeof requireSession>>): string {
+  const name = session?.user?.name?.trim();
+  if (name) return name;
+
+  const email = session?.user?.email?.trim();
+  if (email) return email;
+
+  return "unknown";
+}
+
+function buildRegisterUnpauseReason(targetId: string, eosId: string, actor: string): string {
+  return `登録APIのバイパス適用RCON実行前解除 api=/api/players/register target=${targetId} eosId=${eosId} actor=${actor}`;
+}
+
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
@@ -32,6 +46,7 @@ export async function POST(req: NextRequest) {
       .filter((target): target is { id: string; name: string } => target !== null);
 
     const failedServers = new Set<string>();
+    const actor = resolveActorName(session);
 
     if (whitelist) {
       addToWhitelist(eosId);
@@ -41,13 +56,15 @@ export async function POST(req: NextRequest) {
 
     if (bypass) {
       await Promise.allSettled(targets.map(async (target) => {
+        const unpauseReason = buildRegisterUnpauseReason(target.id, eosId, actor);
+
         try {
-          const unpauseOutput = await execManagerUnpause(target.id);
+          const unpauseOutput = await execManagerUnpause(target.id, unpauseReason);
           if (unpauseOutput) {
-            console.info(`manager unpause output for ${target.id}: ${unpauseOutput}`);
+            console.info(`manager unpause output for ${target.id} (reason: ${unpauseReason}): ${unpauseOutput}`);
           }
         } catch (error: unknown) {
-          console.warn(`Failed to run manager unpause before register bypass RCON: ${target.id}`, error);
+          console.warn(`Failed to run manager unpause before register bypass RCON: ${target.id} (reason: ${unpauseReason})`, error);
         }
 
         try {

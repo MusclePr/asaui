@@ -19,6 +19,28 @@ type RconRunResult = {
   skipped: boolean;
 };
 
+function resolveActorName(session: Awaited<ReturnType<typeof requireSession>>): string {
+  const name = session?.user?.name?.trim();
+  if (name) return name;
+
+  const email = session?.user?.email?.trim();
+  if (email) return email;
+
+  return "unknown";
+}
+
+function buildUnpauseReason(params: {
+  operation: "add" | "remove";
+  targetId: string;
+  eosId: string;
+  actor: string;
+}): string {
+  const actionText = params.operation === "add"
+    ? "バイパス追加のRCON実行前解除"
+    : "バイパス削除のRCON実行前解除";
+  return `${actionText} api=/api/players/bypass target=${params.targetId} eosId=${params.eosId} actor=${params.actor}`;
+}
+
 async function hasAnyRunningManagedContainer(): Promise<boolean> {
   try {
     const containers = await getContainers();
@@ -29,7 +51,11 @@ async function hasAnyRunningManagedContainer(): Promise<boolean> {
   }
 }
 
-async function runBypassRcon(commandBuilder: (eosId: string) => string, eosId: string): Promise<RconRunResult> {
+async function runBypassRcon(
+  commandBuilder: (eosId: string) => string,
+  eosId: string,
+  context: { operation: "add" | "remove"; actor: string }
+): Promise<RconRunResult> {
   const servers = getServers();
   const targets = servers
     .map((server) => {
@@ -56,13 +82,20 @@ async function runBypassRcon(commandBuilder: (eosId: string) => string, eosId: s
 
   await Promise.allSettled(targets.map(async (target) => {
     // Best effort: always issue manager unpause first to avoid stale/missed pause-state detection.
+    const unpauseReason = buildUnpauseReason({
+      operation: context.operation,
+      targetId: target.id,
+      eosId,
+      actor: context.actor,
+    });
+
     try {
-      const unpauseOutput = await execManagerUnpause(target.id);
+      const unpauseOutput = await execManagerUnpause(target.id, unpauseReason);
       if (unpauseOutput) {
-        console.info(`manager unpause output for ${target.id}: ${unpauseOutput}`);
+        console.info(`manager unpause output for ${target.id} (reason: ${unpauseReason}): ${unpauseOutput}`);
       }
     } catch (error: unknown) {
-      console.warn(`Failed to run manager unpause before bypass RCON: ${target.id}`, error);
+      console.warn(`Failed to run manager unpause before bypass RCON: ${target.id} (reason: ${unpauseReason})`, error);
     }
 
     try {
@@ -88,7 +121,11 @@ export async function POST(req: NextRequest) {
     const { eosId } = await req.json();
     if (!eosId) return NextResponse.json({ error: "EOS ID required" }, { status: 400 });
 
-    const result = await runBypassRcon((value) => `AllowPlayerToJoinNoCheck ${value}`, eosId);
+    const result = await runBypassRcon(
+      (value) => `AllowPlayerToJoinNoCheck ${value}`,
+      eosId,
+      { operation: "add", actor: resolveActorName(session) }
+    );
 
     // Keep local file state in sync regardless of RCON execution outcome.
     addToBypassList(eosId);
@@ -121,7 +158,11 @@ export async function DELETE(req: NextRequest) {
     const { eosId } = await req.json();
     if (!eosId) return NextResponse.json({ error: "EOS ID required" }, { status: 400 });
 
-    const result = await runBypassRcon((value) => `DisallowPlayerToJoinNoCheck ${value}`, eosId);
+    const result = await runBypassRcon(
+      (value) => `DisallowPlayerToJoinNoCheck ${value}`,
+      eosId,
+      { operation: "remove", actor: resolveActorName(session) }
+    );
 
     // Keep local file state in sync regardless of RCON execution outcome.
     removeFromBypassList(eosId);

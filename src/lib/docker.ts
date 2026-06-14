@@ -529,10 +529,11 @@ export async function manageContainer(
   }
 }
 
-export async function execManagerUnpause(containerIdOrName: string): Promise<string> {
+export async function execManagerUnpause(containerIdOrName: string, reason?: string): Promise<string> {
   const container = docker.getContainer(containerIdOrName);
+  const cmd = reason ? ['manager', 'unpause', reason] : ['manager', 'unpause'];
   const exec = await container.exec({
-    Cmd: ['manager', 'unpause'],
+    Cmd: cmd,
     AttachStdout: true,
     AttachStderr: true,
     Tty: false,
