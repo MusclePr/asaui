@@ -50,20 +50,6 @@ function resolveClusterNodeCount(envConfig: EnvConfig): number {
   return Math.min(MAX_ASA_SERVER_SLOTS, Math.max(1, parsed));
 }
 
-const DYNAMIC_CONFIG_DESCRIPTIONS: Record<string, string> = {
-  BabyCuddleIntervalMultiplier: '赤ちゃんのケア（刷り込み）の間隔を調整します。値が小さいほど間隔が短くなります。',
-  BabyImprintAmountMultiplier: '1回のケアで上昇する刷り込み値の倍率を調整します。',
-  BabyMatureSpeedMultiplier: '赤ちゃんの成長速度を調整します。値が大きいほど早く成長します。',
-  DynamicColorset: '使用する動的なカラーセットを指定します。',
-  DynamicColorsetChanceOverride: '動的なカラーセットが適用される確率をオーバーライドします。',
-  EggHatchSpeedMultiplier: '卵の孵化速度を調整します。値が大きいほど早く孵化します。',
-  HarvestAmountMultiplier: '資源の採取量を調整します。',
-  HexagonRewardMultiplier: 'ヘキサゴン報酬の倍率を調整します。',
-  MatingIntervalMultiplier: '交配の間隔を調整します。値が小さいほど次に交配できるようになるまでの時間が短くなります。',
-  XPMultiplier: '獲得経験値の倍率を調整します。',
-  TamingSpeedMultiplier: 'テイム速度の倍率を調整します。',
-};
-
 type Defaults = Settings;
 
 type ModInfo = {
@@ -88,6 +74,28 @@ function joinModsCsv(ids: string[]): string {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function renderDynamicDescription(description?: string) {
+  if (!description) {
+    return "設定項目";
+  }
+
+  const lines = description
+    .split(/<br\s*\/?\s*>/i)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length <= 1) {
+    return lines[0] || "設定項目";
+  }
+
+  return lines.map((line, index) => (
+    <span key={`${line}-${index}`}>
+      {line}
+      {index < lines.length - 1 && <br />}
+    </span>
+  ));
 }
 
 function CronDesc({ expression }: { expression: string }) {
@@ -180,6 +188,8 @@ export default function ClusterSettingsPage() {
 
   // Dynamic Settings (dynamicconfig.ini)
   const [dynamicConfig, setDynamicConfig] = useState<DynamicConfig>({});
+  const [dynamicConfigDescriptions, setDynamicConfigDescriptions] = useState<DynamicConfig>({});
+  const [dynamicMultiplierDefaults, setDynamicMultiplierDefaults] = useState<DynamicConfig>({});
   const [originalDynamicConfig, setOriginalDynamicConfig] = useState<DynamicConfig>({});
   const [savingDynamic, setSavingDynamic] = useState(false);
 
@@ -339,8 +349,13 @@ export default function ClusterSettingsPage() {
       const resDynamic = await fetch(getApiUrl("/api/cluster/dynamic"), { cache: "no-store" });
       const dataDynamic = await resDynamic.json();
       if (resDynamic.ok) {
-        setDynamicConfig(dataDynamic);
-        setOriginalDynamicConfig(dataDynamic);
+        const loadedConfig: DynamicConfig = dataDynamic?.config ?? dataDynamic ?? {};
+        const loadedDescriptions: DynamicConfig = dataDynamic?.descriptions ?? {};
+        const loadedMultiplierDefaults: DynamicConfig = dataDynamic?.multiplierDefaults ?? {};
+        setDynamicConfig(loadedConfig);
+        setOriginalDynamicConfig(loadedConfig);
+        setDynamicConfigDescriptions(loadedDescriptions);
+        setDynamicMultiplierDefaults(loadedMultiplierDefaults);
       }
 
       // 4. Container status (to check player counts)
@@ -632,6 +647,22 @@ export default function ClusterSettingsPage() {
     // Round to avoid floating point issues (e.g. 0.1 + 0.2 = 0.30000000000000004)
     const rounded = Math.round(newVal * 1000000) / 1000000;
     setDynamicConfig(prev => ({ ...prev, [key]: rounded.toString() }));
+  };
+
+  const resetDynamicMultiplier = (key: string) => {
+    const fallback = "1.0";
+    const defaultValue = dynamicMultiplierDefaults[key] || fallback;
+    setDynamicConfig(prev => ({
+      ...prev,
+      [key]: defaultValue,
+    }));
+  };
+
+  const resetDynamicFieldToOriginal = (key: string) => {
+    setDynamicConfig(prev => ({
+      ...prev,
+      [key]: originalDynamicConfig[key] ?? "",
+    }));
   };
 
   const resetMaxPlayers = () => {
@@ -1339,11 +1370,11 @@ export default function ClusterSettingsPage() {
 
             {activeTab === "dynamic" && (
               <div className="space-y-6">
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 dark:text-amber-200 rounded-lg flex items-start gap-3">
-                  <Zap className="h-5 w-5 text-amber-600 mt-0.5" />
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 dark:text-emerald-200 rounded-lg flex items-start gap-3">
+                  <Zap className="h-5 w-5 text-emerald-600 mt-0.5" />
                   <div className="text-sm space-y-1">
-                    <p className="font-bold text-amber-800 dark:text-amber-200">動的設定（即時反映領域）</p>
-                    <p className="text-amber-700 dark:text-amber-300 opacity-90">
+                    <p className="font-bold text-emerald-800 dark:text-emerald-200">動的設定（即時反映領域）</p>
+                    <p className="text-emerald-700 dark:text-emerald-300 opacity-90">
                       ここでの変更は `dynamicconfig.ini` に保存され、全サーバーへ反映リクエストが送られます。
                       <strong className="ml-1">サーバーの再起動は不要です。</strong>
                     </p>
@@ -1357,7 +1388,9 @@ export default function ClusterSettingsPage() {
                       倍率・ゲームバランス
                     </h3>
                     <div className="space-y-4">
-                      {Object.keys(dynamicConfig).filter(k => k.endsWith('Multiplier')).map(key => (
+                      {Object.keys(dynamicConfig).filter(k => k.endsWith('Multiplier')).map(key => {
+                        const isEdited = originalDynamicConfig[key] !== dynamicConfig[key];
+                        return (
                         <div key={key} className="space-y-1.5">
                           <div className="flex items-center justify-between">
                             <label className="text-sm font-semibold flex items-center gap-1.5">
@@ -1365,13 +1398,30 @@ export default function ClusterSettingsPage() {
                               <div className="group relative">
                                 <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-popover text-popover-foreground text-xs rounded shadow-xl border opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                                  {DYNAMIC_CONFIG_DESCRIPTIONS[key] || "設定項目"}
+                                  {renderDynamicDescription(dynamicConfigDescriptions[key])}
                                 </div>
                               </div>
                             </label>
-                            {originalDynamicConfig[key] !== dynamicConfig[key] && (
-                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">変更あり</span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {isEdited && (
+                                <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">変更あり</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => resetDynamicFieldToOriginal(key)}
+                                disabled={!isEdited}
+                                className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                リセット
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => resetDynamicMultiplier(key)}
+                                className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs"
+                              >
+                                デフォルト
+                              </button>
+                            </div>
                           </div>
                           <input
                             type="number"
@@ -1382,7 +1432,7 @@ export default function ClusterSettingsPage() {
                             className="w-full px-3 py-2 border rounded bg-background font-mono text-sm"
                           />
                         </div>
-                      ))}
+                      )})}
                     </div>
                   </div>
 
@@ -1392,7 +1442,9 @@ export default function ClusterSettingsPage() {
                       その他・カラーセット
                     </h3>
                     <div className="space-y-4">
-                      {Object.keys(dynamicConfig).filter(k => !k.endsWith('Multiplier')).map(key => (
+                      {Object.keys(dynamicConfig).filter(k => !k.endsWith('Multiplier')).map(key => {
+                        const isEdited = originalDynamicConfig[key] !== dynamicConfig[key];
+                        return (
                         <div key={key} className="space-y-1.5">
                           <div className="flex items-center justify-between">
                             <label className="text-sm font-semibold flex items-center gap-1.5">
@@ -1400,13 +1452,23 @@ export default function ClusterSettingsPage() {
                               <div className="group relative">
                                 <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-popover text-popover-foreground text-xs rounded shadow-xl border opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                                  {DYNAMIC_CONFIG_DESCRIPTIONS[key] || "設定項目"}
+                                  {renderDynamicDescription(dynamicConfigDescriptions[key])}
                                 </div>
                               </div>
                             </label>
-                            {originalDynamicConfig[key] !== dynamicConfig[key] && (
-                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">変更あり</span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {isEdited && (
+                                <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">変更あり</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => resetDynamicFieldToOriginal(key)}
+                                disabled={!isEdited}
+                                className="px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                リセット
+                              </button>
+                            </div>
                           </div>
                           <input
                             type="text"
@@ -1415,7 +1477,7 @@ export default function ClusterSettingsPage() {
                             className="w-full px-3 py-2 border rounded bg-background font-mono text-sm"
                           />
                         </div>
-                      ))}
+                      )})}
                       
                       <div className="pt-4 border-t">
                         <a 

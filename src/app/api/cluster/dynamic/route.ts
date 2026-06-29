@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { readDynamicConfig, writeDynamicConfig, broadcastDynamicConfigReload } from "@/lib/dynamicConfig";
+import { readDynamicConfig, writeDynamicConfig, broadcastDynamicConfigReload, readDynamicMultiplierDefaults } from "@/lib/dynamicConfig";
+import { DYNAMIC_CONFIG_DESCRIPTIONS, DYNAMIC_MULTIPLIER_KEYS } from "@/lib/shared/dynamicConfigMetadata";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected error";
@@ -15,7 +16,16 @@ export async function GET() {
 
   try {
     const config = readDynamicConfig();
-    return NextResponse.json(config);
+    const multiplierDefaults = readDynamicMultiplierDefaults();
+    return NextResponse.json({
+      config: {
+        ...multiplierDefaults,
+        ...config,
+      },
+      multiplierDefaults,
+      descriptions: DYNAMIC_CONFIG_DESCRIPTIONS,
+      multiplierKeys: DYNAMIC_MULTIPLIER_KEYS,
+    });
   } catch (error: unknown) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
