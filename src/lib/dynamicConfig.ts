@@ -1,24 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { CLUSTER_DIR } from './cluster';
+import { CLUSTER_DIR, GAME_INI_FILE, GAME_USER_SETTINGS_FILE } from './cluster';
 import { getContainers, execRcon } from './docker';
 import { canExecuteRcon } from './serverState';
 import { DYNAMIC_MULTIPLIER_KEYS } from './shared/dynamicConfigMetadata';
 
 export const DYNAMIC_CONFIG_FILE = path.join(CLUSTER_DIR, 'web', 'dynamicconfig.ini');
 export const DYNAMIC_CONFIG_APPLY_COMMAND = 'ForceUpdateDynamicConfig';
-const WINDOWS_SERVER_CONFIG_DIR = path.join(
-  CLUSTER_DIR,
-  'server',
-  'ShooterGame',
-  'Saved',
-  'Config',
-  'WindowsServer'
-);
-const GAME_INI_FILE = path.join(WINDOWS_SERVER_CONFIG_DIR, 'Game.ini');
-const GAME_USER_SETTINGS_FILE = path.join(WINDOWS_SERVER_CONFIG_DIR, 'GameUserSettings.ini');
-const LEGACY_GAME_INI_FILE = path.join(CLUSTER_DIR, 'server', 'Game.ini');
-const LEGACY_GAME_USER_SETTINGS_FILE = path.join(CLUSTER_DIR, 'server', 'GameUserSettings.ini');
 
 const GAME_USER_SETTINGS_MULTIPLIER_KEYS = new Set([
   'XPMultiplier',
@@ -57,24 +45,15 @@ function parseIniKeyValueMap(filePath: string): DynamicConfig {
   return config;
 }
 
-function resolveReadablePath(primaryPath: string, fallbackPath: string): string {
-  if (fs.existsSync(primaryPath)) {
-    return primaryPath;
-  }
-  return fallbackPath;
-}
+
 
 export function readDynamicConfig(): DynamicConfig {
   return parseIniKeyValueMap(DYNAMIC_CONFIG_FILE);
 }
 
 export function readDynamicMultiplierDefaults(): DynamicConfig {
-  const gameIniConfig = parseIniKeyValueMap(
-    resolveReadablePath(GAME_INI_FILE, LEGACY_GAME_INI_FILE)
-  );
-  const gameUserSettingsConfig = parseIniKeyValueMap(
-    resolveReadablePath(GAME_USER_SETTINGS_FILE, LEGACY_GAME_USER_SETTINGS_FILE)
-  );
+  const gameIniConfig = parseIniKeyValueMap(GAME_INI_FILE);
+  const gameUserSettingsConfig = parseIniKeyValueMap(GAME_USER_SETTINGS_FILE);
   const defaults: DynamicConfig = {};
 
   for (const key of DYNAMIC_MULTIPLIER_KEYS) {

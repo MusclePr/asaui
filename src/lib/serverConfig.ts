@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import diff3Merge, { Diff3Chunk } from 'diff3';
-import { CLUSTER_DIR } from './cluster';
+import { WINDOWS_SERVER_CONFIG_DIR } from './cluster';
 
-const SERVER_DIR = path.join(CLUSTER_DIR, 'server');
+const SERVER_DIR = WINDOWS_SERVER_CONFIG_DIR;
 
 const CONFIG_FILENAMES = ['GameUserSettings.ini', 'Game.ini'] as const;
 

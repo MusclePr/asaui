@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import Docker from "dockerode";
-import { CLUSTER_DIR } from "./cluster";
+import { CLUSTER_DIR, SAVED_DIR } from "./cluster";
 import { runDockerCompose } from "./compose";
 import { getServers } from "./config";
 
@@ -13,8 +13,6 @@ const docker = new Docker();
 const BACKUP_FILENAME_RE = /^[a-z0-9_]+_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.tar\.gz$/;
 
 export const BACKUP_DIR = path.join(CLUSTER_DIR, "backups");
-export const SAVED_DIR = path.join(CLUSTER_DIR, "server", "ShooterGame", "Saved");
-export const GUS_INI = path.join(CLUSTER_DIR, "server", "GameUserSettings.ini");
 
 export interface DiskUsage {
   total: number;
@@ -57,17 +55,13 @@ export function getMainServerContainerName(): string {
   return getMainServerRef().containerName;
 }
 
-async function getSessionName(): Promise<string> {
-  try {
-    if (fs.existsSync(GUS_INI)) {
-      const content = fs.readFileSync(GUS_INI, "utf-8");
-      const match = content.match(/^SessionName=(.+)/m);
-      if (match) return match[1].trim();
-    }
-  } catch (error) {
-    console.error("Error reading session name:", error);
-  }
-  return "Session";
+function getSessionName(): string {
+  // Use the static cluster configuration session name instead of GameUserSettings.ini
+  // to avoid conflicts from multiple nodes writing to the same file
+  const main = getMainServerRef();
+  const servers = getServers();
+  const mainServer = servers.find(s => s.id === main.serviceId) || servers[0];
+  return mainServer?.sessionName || "Session";
 }
 
 function sanitize(name: string): string {
@@ -185,7 +179,7 @@ export async function createBackup() {
     return await runDockerCompose(["compose", "exec", "-u", "arkuser", "-T", main.serviceId, "manager", "backup"]);
   } else {
     // Manual backup while container is offline
-    const sessionName = await getSessionName();
+    const sessionName = getSessionName();
     const filename = `${sanitize(sessionName)}_${formatDate(new Date())}.tar.gz`;
     const destPath = path.join(BACKUP_DIR, filename);
 
