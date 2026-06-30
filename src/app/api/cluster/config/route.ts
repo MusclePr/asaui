@@ -8,7 +8,6 @@ import {
 } from "@/lib/cluster";
 import {
   parseEnvText,
-  serializeEnv,
   serializeEnvWithTemplate,
   validateCronWithSupercronic,
   calculateSlavePorts,

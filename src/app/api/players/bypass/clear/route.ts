@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireSession, unauthorizedResponse } from "@/lib/apiAuth";
 import { clearBypassList, getBypassList } from "@/lib/storage";
 import { execManagerUnpause, execRcon, getContainers } from "@/lib/docker";
@@ -18,7 +18,7 @@ async function hasAnyRunningManagedContainer(): Promise<boolean> {
   }
 }
 
-export async function POST(_req: NextRequest) {
+export async function POST() {
   const session = await requireSession();
   if (!session) return unauthorizedResponse();
 

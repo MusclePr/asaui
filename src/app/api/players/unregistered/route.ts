@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
 import Docker from "dockerode";
 import { getServers } from "@/lib/config";
 import { getPlayerProfiles } from "@/lib/storage";
@@ -164,7 +162,6 @@ export async function GET() {
     const profilesMap = getPlayerProfiles();
     const registeredEosIds = new Set(Object.keys(profilesMap));
     
-    const allCandidates: UnregisteredPlayerCandidate[] = [];
     const eosIdToCandidate = new Map<string, UnregisteredPlayerCandidate>();
 
     // Fetch and parse logs for each server
@@ -197,7 +194,7 @@ export async function GET() {
       // Process each unique EOS ID
       const seen = new Set<string>();
       for (const incomingEvent of incomingEvents) {
-        const { eosId, ip, timestamp: incomingTime, arkTimestamp } = incomingEvent;
+        const { eosId, ip, timestamp: incomingTime } = incomingEvent;
 
         // Skip if already seen (dedup by EOS ID)
         if (seen.has(eosId)) continue;
