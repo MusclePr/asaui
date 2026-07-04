@@ -10,7 +10,7 @@ export const ASA_MAP_NAMES: Record<string, string> = {
   "Valguero_WP": "バルゲロ",
   "LostColony_WP": "ロストコロニー",
   "Astraeos_WP": "アストレオス",
-  "Genesis1_WP": "ジェネシス１",
+  "Genesis_WP": "ジェネシス",
   // "CrystalIsles_WP": "クリスタルアイルズ",
   // "Genesis2_WP": "ジェネシス2",
   // "LostIsland_WP": "ロストアイランド",
