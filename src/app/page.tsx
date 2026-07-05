@@ -643,7 +643,7 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {isAdmin && (() => {
+                {(() => {
                   const autoPauseEnabled = c.autoPauseEnabled ?? true;
                   const autoPauseDisabledReason = !autoPauseFeatureEnabled
                     ? "AUTO_PAUSE_ENABLED が有効でないため操作できません"
