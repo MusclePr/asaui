@@ -126,7 +126,7 @@ function scanLoginMapPlayers(mapRaw: string, clusterId: string): SavedPlayerReco
 
     const filePath = path.join(loginDir, file);
     try {
-      const mapName = fs.readFileSync(filePath, "utf8").trim();
+      const mapName = fs.readFileSync(filePath, "utf8").split('\n')[0].trim();
       if (!mapName) continue;
       if (getBaseMapName(mapName) !== targetMap) continue;
 
