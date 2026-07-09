@@ -33,6 +33,18 @@ export async function GET(
 
     const responseStream = new ReadableStream({
       async start(controller) {
+        let bufferedLine = '';
+
+        const filterChunk = (input: string): string => {
+          const combined = bufferedLine + input;
+          const lines = combined.split('\n');
+          bufferedLine = lines.pop() ?? '';
+
+          const kept = lines.filter((line) => !line.includes(' AdminCmd: '));
+          if (kept.length === 0) return '';
+          return `${kept.join('\n')}\n`;
+        };
+
         logStream.on('data', (chunk: Buffer) => {
           // Docker logs can have a 8-byte header if TTY is false (multiplexed)
           // [0] = stream type (1 for stdout, 2 for stderr)
@@ -51,10 +63,16 @@ export async function GET(
             text = chunk.subarray(8).toString('utf-8');
           }
 
-          controller.enqueue(`data: ${JSON.stringify({ text })}\n\n`);
+          const filteredText = filterChunk(text);
+          if (!filteredText) return;
+
+          controller.enqueue(`data: ${JSON.stringify({ text: filteredText })}\n\n`);
         });
 
         logStream.on('end', () => {
+          if (bufferedLine && !bufferedLine.includes(' AdminCmd: ')) {
+            controller.enqueue(`data: ${JSON.stringify({ text: bufferedLine })}\n\n`);
+          }
           controller.close();
         });
 

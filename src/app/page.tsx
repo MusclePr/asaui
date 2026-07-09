@@ -789,16 +789,17 @@ export default function Dashboard() {
                         <Terminal className="h-4 w-4" />
                       </button>
                     </div>
-                    <button
-                      onClick={() => setSelectedLogContainer(c)}
-                      className="w-full py-2 bg-secondary text-secondary-foreground rounded text-sm font-medium hover:bg-secondary/80 flex items-center justify-center gap-2 transition-colors disabled:opacity-40"
-                      disabled={c.state === 'not_created'}
-                      title={c.state === 'not_created' ? "コンテナが作成されていません" : "ログを表示"}
-                    >
-                      <FileText className="h-4 w-4" /> ログを表示
-                    </button>
                   </>
                 )}
+
+                <button
+                  onClick={() => setSelectedLogContainer(c)}
+                  className="w-full py-2 bg-secondary text-secondary-foreground rounded text-sm font-medium hover:bg-secondary/80 flex items-center justify-center gap-2 transition-colors disabled:opacity-40"
+                  disabled={c.state === 'not_created'}
+                  title={c.state === 'not_created' ? "コンテナが作成されていません" : "ログを表示"}
+                >
+                  <FileText className="h-4 w-4" /> ログを表示
+                </button>
               </div>
               );
             })}
