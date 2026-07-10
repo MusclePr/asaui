@@ -246,6 +246,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
     );
 
     let detailedState: string | undefined = undefined;
+    let version: string | undefined = undefined;
     let autoPauseEnabled: boolean | undefined = undefined;
     if (server.port && signalsExist) {
       const statusFile = path.join(SIGNAL_DIR, `server_${server.port}`, 'status');
@@ -254,6 +255,15 @@ export async function getContainers(): Promise<ContainerStatus[]> {
           detailedState = fs.readFileSync(statusFile, 'utf8').trim() || undefined;
         } catch (e) {
           console.warn(`Failed to read status file for ${server.id}:`, e);
+        }
+      }
+
+      const versionFile = path.join(SIGNAL_DIR, `server_${server.port}`, 'version');
+      if (fs.existsSync(versionFile)) {
+        try {
+          version = fs.readFileSync(versionFile, 'utf8').trim() || undefined;
+        } catch (e) {
+          console.warn(`Failed to read version file for ${server.id}:`, e);
         }
       }
 
@@ -324,6 +334,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         health,
         isStopping,
         detailedState,
+        version,
         clusterOperationInProgress: clusterOperation.inProgress,
         clusterOperationType: clusterOperation.type,
         autoPauseEnabled,
@@ -346,6 +357,7 @@ export async function getContainers(): Promise<ContainerStatus[]> {
         state: "not_created",
         status: "Not created",
         detailedState,
+        version,
         clusterOperationInProgress: clusterOperation.inProgress,
         clusterOperationType: clusterOperation.type,
         autoPauseEnabled,

@@ -9,6 +9,7 @@ export interface ContainerStatus {
   health?: string; // e.g. "healthy", "unhealthy", "starting"
   isStopping?: boolean; // detected from "Received shutdown signal" logs
   detailedState?: string; // e.g. "UPDATING", "WAITING", "MAINTENANCE", "PAUSING", "PAUSED"
+  version?: string; // Server version from .signals/SERVER_<port>/version
   clusterOperationInProgress?: boolean; // cluster-level backup/restore operation detected from .signals/cluster
   clusterOperationType?: ClusterOperationType;
   map?: string; // Display name

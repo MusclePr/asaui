@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import AppLayout from "@/components/AppLayout";
-import { Play, Square, RotateCcw, FileText, X, Terminal, Send, Search, Loader, Check } from "lucide-react";
+import { Play, Square, RotateCcw, FileText, X, Terminal, Send, Search, Loader, Check, Info } from "lucide-react";
 import { ContainerStatus, UnregisteredPlayerCandidate } from "@/types";
 import LogStreamViewer from "@/components/LogStreamViewer";
 import { getApiUrl } from "@/lib/utils";
@@ -624,6 +624,18 @@ export default function Dashboard() {
                     <p className="truncate">{c.status}</p>
                   </div>
                 </div>
+
+                {c.version && (
+                  <div 
+                    className="flex items-center gap-1 cursor-help" 
+                    title={`バージョン: ${c.version}`}
+                  >
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">
+                      バージョン: {c.version}
+                    </p>
+                  </div>
+                )}
 
                 {serverOpActive && !clusterOperationActive && (
                   <div className="space-y-2 p-3 rounded border border-yellow-500/20 bg-yellow-500/5">
