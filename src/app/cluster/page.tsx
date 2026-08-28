@@ -127,7 +127,7 @@ export default function ClusterSettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [needsApply, setNeedsApply] = useState(false);
   const [simpleMode, setSimpleMode] = useState(true);
-  const [activeTab, setActiveTab] = useState<"static" | "dynamic" | "ini-gus" | "ini-game">("static");
+  const [activeTab, setActiveTab] = useState<"cluster" | "server" | "dynamic" | "ini-gus" | "ini-game">("cluster");
 
   const [containers, setContainers] = useState<ContainerStatus[]>([]);
 
@@ -709,7 +709,7 @@ export default function ClusterSettingsPage() {
             >
               <RefreshCcw className="h-4 w-4" /> 再読込
             </button>
-            {activeTab === "static" ? (
+            {(activeTab === "cluster" || activeTab === "server") ? (
               <button
                 onClick={saveAll}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 flex items-center gap-2"
@@ -745,16 +745,29 @@ export default function ClusterSettingsPage() {
         {/* Tab Navigation */}
         <div className="flex border-b">
           <button
-            onClick={() => setActiveTab("static")}
+            onClick={() => setActiveTab("cluster")}
             className={`px-6 py-3 text-sm font-medium transition-colors relative ${
-              activeTab === "static" 
+              activeTab === "cluster"
                 ? "text-primary border-b-2 border-primary" 
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <div className="flex items-center gap-2">
               <Settings2 className="h-4 w-4" />
-              静的設定 (要再起動)
+              クラスタ設定
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("server")}
+            className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+              activeTab === "server"
+                ? "text-primary border-b-2 border-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4" />
+              サーバー設定
             </div>
           </button>
           <button
@@ -798,7 +811,7 @@ export default function ClusterSettingsPage() {
           </button>
         </div>
 
-        {needsApply && activeTab === "static" && (
+        {needsApply && (activeTab === "cluster" || activeTab === "server") && (
           <div className="p-4 bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-orange-800 dark:text-orange-200">
               <ShieldAlert className="h-5 w-5" />
@@ -829,7 +842,7 @@ export default function ClusterSettingsPage() {
               </div>
             )}
 
-            {activeTab === "static" && (
+            {activeTab === "cluster" && (
               <>
                 {/* クラスタ設定 (.env) */}
                 {isAdmin && (
@@ -921,10 +934,10 @@ export default function ClusterSettingsPage() {
                   </div>
                 )}
 
-                {/* サーバー個別設定 */}
+                {/* サーバー構成 */}
                 <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold border-l-4 border-primary pl-3">サーバー設定</h3>
+                <h3 className="text-xl font-bold border-l-4 border-primary pl-3">サーバー構成</h3>
                 <button
                   onClick={() => setSimpleMode(!simpleMode)}
                   className="text-xs text-primary flex items-center gap-1 hover:underline"
@@ -1043,6 +1056,11 @@ export default function ClusterSettingsPage() {
               </div>
             </div>
 
+              </>
+            )}
+
+            {activeTab === "server" && (
+              <>
             {/* 共通サーバー設定 */}
             <div className="space-y-4">
               <h3 className="text-xl font-bold border-l-4 border-primary pl-3">サーバー共通設定</h3>
