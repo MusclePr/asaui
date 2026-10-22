@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint ."
   },
@@ -17,7 +17,7 @@
     "diff3": "^0.0.4",
     "dockerode": "^4.0.2",
     "lucide-react": "^0.363.0",
-    "next": "^15.0.0",
+    "next": "^16.4.2",
     "next-auth": "^4.24.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -33,7 +33,7 @@
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.19",
     "eslint": "9.39.2",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "^16.4.2",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.4.3"
