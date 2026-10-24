@@ -53,7 +53,8 @@ interface LeftArkEvent {
 function parseIncomingAccountLog(logText: string): IncomingAccountEvent[] {
   const events: IncomingAccountEvent[] = [];
   // Pattern: [2026.04.05-12.05.10:830][467]IP for incoming account 00023e876b964cd3b6f01a9d7040d038 - IP 121.80.186.64
-  const regex = /\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]\[\d+\]IP for incoming account ([a-f0-9]{32}) - IP ([\d.]+)/gi;
+  // Pattern: [2026.10.24-16.22.04:347][ 99]IP for incoming account 00023e876b964cd3b6f01a9d7040d038 - IP 121.80.186.64
+  const regex = /\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]\[[\s\d]+\]IP for incoming account ([a-f0-9]{32}) - IP ([\d\.]+)/gi;
   let match;
   
   while ((match = regex.exec(logText)) !== null) {
@@ -79,7 +80,7 @@ function parseIncomingAccountLog(logText: string): IncomingAccountEvent[] {
 function parseLeftArkLog(logText: string): LeftArkEvent[] {
   const events: LeftArkEvent[] = [];
   // Pattern: [2026.04.05-12.05.14:414][527]2026.04.05_12.05.14: まっする [UniqueNetId: Platform:None] left this ARK!
-  const regex = /\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]\[\d+\][\d.]+_[\d.:]+:\s+([^\[]+)\s+\[UniqueNetId:\s+Platform:([^\]]*)\]\s+left this ARK!/gim;
+  const regex = /\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]\[[\s\d]+\][\d\.]+_[\d\.:]+:\s+([^\[]+)\s+\[UniqueNetId:\s+Platform:([^\]]*)\]\s+left this ARK!/gim;
   let match;
   
   while ((match = regex.exec(logText)) !== null) {
